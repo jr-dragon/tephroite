@@ -1,7 +1,21 @@
 package main
 
-import "fmt"
+import (
+	"context"
+	"log/slog"
+)
+
+var (
+	// go build -ldflags "-X main.Name=tephroite -X main.Version=0.0.0"
+	Name    string
+	Version string
+)
 
 func main() {
-	fmt.Println("Hello World")
+	app := NewApp()
+
+	ctx := context.TODO()
+	if err := app.Run(ctx); err != nil {
+		slog.ErrorContext(ctx, "failed to run app:", slog.Any("error", err))
+	}
 }
