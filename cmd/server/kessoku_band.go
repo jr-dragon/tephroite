@@ -2,11 +2,14 @@
 
 package main
 
-import "github.com/mazrean/kessoku"
+import (
+	"github.com/mazrean/kessoku"
+	"net/http"
+)
 
 func NewApp() *App {
 	app := kessoku.Provide(func() *App {
-		return &App{}
+		return &App{httpsrv: &http.Server{Addr: "localhost:6060"}}
 	}).Fn()()
 	return app
 }

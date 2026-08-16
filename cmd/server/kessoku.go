@@ -1,6 +1,9 @@
 package main
 
 import (
+	"net/http"
+	_ "net/http/pprof"
+
 	"github.com/mazrean/kessoku"
 )
 
@@ -10,6 +13,8 @@ var _ = kessoku.Inject[*App](
 
 	// app
 	kessoku.Provide(func() *App {
-		return &App{}
+		return &App{
+			httpsrv: &http.Server{Addr: "localhost:6060"},
+		}
 	}),
 )

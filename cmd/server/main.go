@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log/slog"
+	"os"
 )
 
 var (
@@ -17,5 +18,6 @@ func main() {
 	ctx := context.TODO()
 	if err := app.Run(ctx); err != nil {
 		slog.ErrorContext(ctx, "failed to run app:", slog.Any("error", err))
+		os.Exit(1)
 	}
 }
