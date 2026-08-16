@@ -10,11 +10,15 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/panjf2000/gnet/v2"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/jr-dragon/tephroite/internal/server"
 )
 
 type App struct {
 	httpsrv *http.Server
+	respsrv *server.RESPServer
 }
 
 func (app *App) Run(ctx context.Context) error {
@@ -29,6 +33,9 @@ func (app *App) Run(ctx context.Context) error {
 			return err
 		}
 		return nil
+	})
+	g.Go(func() error {
+		return gnet.Run(app.respsrv, app.respsrv.Addr)
 	})
 
 	errch := make(chan error, 1)
@@ -60,5 +67,7 @@ func (app *App) shutdown(ctx context.Context) error {
 		}
 	}
 
-	return httpErr
+	respErr := app.respsrv.Shutdown(ctx)
+
+	return errors.Join(respErr, httpErr)
 }

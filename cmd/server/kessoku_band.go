@@ -3,13 +3,17 @@
 package main
 
 import (
-	"github.com/mazrean/kessoku"
 	"net/http"
+
+	"github.com/mazrean/kessoku"
+
+	"github.com/jr-dragon/tephroite/internal/server"
 )
 
 func NewApp() *App {
-	app := kessoku.Provide(func() *App {
-		return &App{httpsrv: &http.Server{Addr: "localhost:6060"}}
-	}).Fn()()
+	respserver := kessoku.Provide(server.NewRESPServer).Fn()()
+	app := kessoku.Provide(func(respsrv *server.RESPServer) *App {
+		return &App{httpsrv: &http.Server{Addr: "localhost:6060"}, respsrv: respsrv}
+	}).Fn()(respserver)
 	return app
 }
