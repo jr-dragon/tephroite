@@ -3,11 +3,9 @@
 package main
 
 import (
-	"net/http"
-
-	"github.com/mazrean/kessoku"
-
 	"github.com/jr-dragon/tephroite/internal/server"
+	"github.com/mazrean/kessoku"
+	"net/http"
 )
 
 func NewApp() *App {
