@@ -68,13 +68,12 @@ func (v SimpleError) Marshal() []byte {
 type Integer int64
 
 func (v Integer) Marshal() []byte {
-	var buf bytes.Buffer
+	buf := make([]byte, 0, 24)
+	buf = append(buf, MAGIC_INTEGER)
+	buf = strconv.AppendInt(buf, int64(v), 10)
+	buf = append(buf, []byte(SENTINEL)...)
 
-	buf.WriteRune(MAGIC_INTEGER)
-	buf.WriteString(strconv.FormatInt(int64(v), 10))
-	buf.WriteString(SENTINEL)
-
-	return buf.Bytes()
+	return buf
 }
 
 type BulkString struct {
@@ -107,10 +106,12 @@ func (v BulkString) Marshal() []byte {
 	 * |               '$' |    "5" | "hello" | "\r\n"   |
 	 * |-------------------|--------|---------|----------|
 	 */
-	var buf bytes.Buffer
-	buf.WriteRune(MAGIC_BULK_STRING)
-	buf.WriteString(strconv.Itoa(len(v.data)))
-	buf.WriteString(SENTINEL)
+	header := make([]byte, 0, 64)
+	header = append(header, MAGIC_BULK_STRING)
+	header = strconv.AppendInt(header, int64(len(v.data)), 10)
+	header = append(header, []byte(SENTINEL)...)
+
+	buf := bytes.NewBuffer(header)
 	buf.WriteString(v.data)
 	buf.WriteString(SENTINEL)
 	return buf.Bytes()
@@ -150,10 +151,12 @@ func (v Array) Marshal() []byte {
 	 * |         '*' |    "1" | "\r\n"   | "$4\r\nPING\r\n"      |
 	 * |-------------|--------|----------|-----------------------|
 	 */
-	var buf bytes.Buffer
-	buf.WriteRune(MAGIC_ARRAY)
-	buf.WriteString(strconv.Itoa(len(v.data)))
-	buf.WriteString(SENTINEL)
+	header := make([]byte, 0, 1<<12)
+	header = append(header, MAGIC_ARRAY)
+	header = strconv.AppendInt(header, int64(len(v.data)), 10)
+	header = append(header, []byte(SENTINEL)...)
+
+	buf := bytes.NewBuffer(header)
 	for _, v := range v.data {
 		if v == nil {
 			buf.Write(NullBulkStringValue.Marshal())
