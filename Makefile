@@ -1,6 +1,7 @@
 .PHONY: all init server lint test clean
 
 BIN_DIR := bin
+GOIMPORTS_EXCLUDE := ./cmd/server/kessoku_band.go
 
 all: server
 
@@ -14,7 +15,8 @@ server:
 	@go build -ldflags "-X main.Name=tephroite -X main.Version=0.0.0" -o $(BIN_DIR)/tp-server ./cmd/server
 
 lint:
-	@goimports -w -local github.com/jr-dragon/tephroite .
+	@find . -type f -name '*.go' ! -path '$(GOIMPORTS_EXCLUDE)' -print0 | \
+		xargs -0 goimports -w -local github.com/jr-dragon/tephroite
 
 test:
 	@go generate ./...
