@@ -12,7 +12,15 @@ const (
 	MAGIC_BULK_STRING   = '$'
 	MAGIC_ARRAY         = '*'
 	SENTINEL            = "\r\n"
+
+	maxInt64TextLen   = 20
+	maxFloat64TextLen = 24
 )
+
+func bufferForAppend(buf *bytes.Buffer, size int) []byte {
+	buf.Grow(size)
+	return buf.AvailableBuffer()
+}
 
 type Value interface {
 	Marshal() []byte
@@ -70,7 +78,7 @@ type Integer int64
 
 func (v Integer) marshalTo(buf *bytes.Buffer) {
 	buf.WriteByte(MAGIC_INTEGER)
-	buf.Write(strconv.AppendInt(make([]byte, 0, 10), int64(v), 10))
+	buf.Write(strconv.AppendInt(bufferForAppend(buf, maxInt64TextLen), int64(v), 10))
 	buf.WriteString(SENTINEL)
 }
 
@@ -96,7 +104,7 @@ func (v BulkString) marshalTo(buf *bytes.Buffer) {
 	}
 
 	buf.WriteByte(MAGIC_BULK_STRING)
-	buf.Write(strconv.AppendInt(make([]byte, 0, 10), int64(len(v.data)), 10))
+	buf.Write(strconv.AppendInt(bufferForAppend(buf, maxInt64TextLen), int64(len(v.data)), 10))
 	buf.WriteString(SENTINEL)
 	buf.WriteString(v.data)
 	buf.WriteString(SENTINEL)
@@ -128,7 +136,7 @@ func (v Array) marshalTo(buf *bytes.Buffer) {
 	}
 
 	buf.WriteByte(MAGIC_ARRAY)
-	buf.Write(strconv.AppendInt(make([]byte, 0, 10), int64(len(v.data)), 10))
+	buf.Write(strconv.AppendInt(bufferForAppend(buf, maxInt64TextLen), int64(len(v.data)), 10))
 	buf.WriteString(SENTINEL)
 	for _, v := range v.data {
 		if v == nil {
