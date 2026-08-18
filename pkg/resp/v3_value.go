@@ -63,7 +63,7 @@ func (v Double) marshalTo(buf *bytes.Buffer) {
 	case math.IsNaN(val):
 		buf.WriteString("nan")
 	default:
-		buf.Write(strconv.AppendFloat(bufferForAppend(buf, maxFloat64TextLen), val, 'g', -1, 64))
+		buf.Write(strconv.AppendFloat(bufferForAppend(buf), val, 'g', -1, 64))
 	}
 
 	buf.WriteString(SENTINEL)
@@ -115,7 +115,7 @@ func NewBulkError(err error) BulkError {
 
 func (v BulkError) marshalTo(buf *bytes.Buffer) {
 	buf.WriteByte(MAGIC_BULK_ERROR)
-	buf.Write(strconv.AppendInt(bufferForAppend(buf, maxInt64TextLen), int64(len(v)), 10))
+	buf.Write(strconv.AppendInt(bufferForAppend(buf), int64(len(v)), 10))
 	buf.WriteString(SENTINEL)
 	buf.Write(v)
 	buf.WriteString(SENTINEL)
@@ -142,7 +142,7 @@ func NewVerbatimString(encoding [3]byte, data string) VerbatimString {
 
 func (v VerbatimString) marshalTo(buf *bytes.Buffer) {
 	buf.WriteByte(MAGIC_VERBATIM_STRING)
-	buf.Write(strconv.AppendInt(bufferForAppend(buf, maxInt64TextLen), int64(len(v.data)+4), 10))
+	buf.Write(strconv.AppendInt(bufferForAppend(buf), int64(len(v.data)+4), 10))
 	buf.WriteString(SENTINEL)
 	buf.Write(v.encoding[:])
 	buf.WriteByte(':')
@@ -171,7 +171,7 @@ func NewMap(data []MapEntry) Map {
 
 func (v Map) marshalTo(buf *bytes.Buffer) {
 	buf.WriteByte(MAGIC_MAP)
-	buf.Write(strconv.AppendInt(bufferForAppend(buf, maxInt64TextLen), int64(len(v.data)), 10))
+	buf.Write(strconv.AppendInt(bufferForAppend(buf), int64(len(v.data)), 10))
 	buf.WriteString(SENTINEL)
 
 	for _, e := range v.data {
@@ -203,7 +203,7 @@ func NewAttribute(data []MapEntry) Attribute {
 
 func (v Attribute) marshalTo(buf *bytes.Buffer) {
 	buf.WriteByte(MAGIC_ATTRIBUTE)
-	buf.Write(strconv.AppendInt(bufferForAppend(buf, maxInt64TextLen), int64(len(v.data)), 10))
+	buf.Write(strconv.AppendInt(bufferForAppend(buf), int64(len(v.data)), 10))
 	buf.WriteString(SENTINEL)
 
 	for _, e := range v.data {
@@ -234,7 +234,7 @@ func NewSet(data []Value) Set {
 
 func (v Set) marshalTo(buf *bytes.Buffer) {
 	buf.WriteByte(MAGIC_SET)
-	buf.Write(strconv.AppendInt(bufferForAppend(buf, maxInt64TextLen), int64(len(v.data)), 10))
+	buf.Write(strconv.AppendInt(bufferForAppend(buf), int64(len(v.data)), 10))
 	buf.WriteString(SENTINEL)
 	for _, v := range v.data {
 		if v == nil {
@@ -260,7 +260,7 @@ func NewPush(data []Value) Push {
 
 func (v Push) marshalTo(buf *bytes.Buffer) {
 	buf.WriteByte(MAGIC_PUSH)
-	buf.Write(strconv.AppendInt(bufferForAppend(buf, maxInt64TextLen), int64(len(v.data)), 10))
+	buf.Write(strconv.AppendInt(bufferForAppend(buf), int64(len(v.data)), 10))
 	buf.WriteString(SENTINEL)
 	for _, v := range v.data {
 		if v == nil {
