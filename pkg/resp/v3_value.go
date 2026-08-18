@@ -81,13 +81,17 @@ type BigNumber struct {
 
 func NewBigNumber(val *big.Int) BigNumber {
 	if val == nil {
-		return BigNumber{val: val}
+		return BigNumber{val: big.NewInt(0)}
 	}
 
 	return BigNumber{val: new(big.Int).Set(val)}
 }
 
 func (v BigNumber) marshalTo(buf *bytes.Buffer) {
+	if v.val == nil {
+		v.val = big.NewInt(0)
+	}
+
 	buf.WriteByte(MAGIC_BIG_NUMBER)
 	buf.WriteString(v.val.String())
 	buf.WriteString(SENTINEL)
@@ -203,6 +207,12 @@ func (v Attribute) marshalTo(buf *bytes.Buffer) {
 	buf.WriteString(SENTINEL)
 
 	for _, e := range v.data {
+		if e.Key == nil {
+			e.Key = Null{}
+		}
+		if e.Value == nil {
+			e.Value = Null{}
+		}
 		e.Key.marshalTo(buf)
 		e.Value.marshalTo(buf)
 	}
@@ -253,6 +263,9 @@ func (v Push) marshalTo(buf *bytes.Buffer) {
 	buf.Write(strconv.AppendInt(make([]byte, 0, 10), int64(len(v.data)), 10))
 	buf.WriteString(SENTINEL)
 	for _, v := range v.data {
+		if v == nil {
+			v = Null{}
+		}
 		v.marshalTo(buf)
 	}
 }

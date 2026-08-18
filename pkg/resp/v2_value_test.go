@@ -168,6 +168,11 @@ func TestArrayMarshal(t *testing.T) {
 			want: "*4\r\n+OK\r\n:-2\r\n$3\r\nhey\r\n-ERR failure\r\n",
 		},
 		{
+			name:  "static OK value",
+			value: NewArray([]Value{OKValue}),
+			want:  "*1\r\n+OK\r\n",
+		},
+		{
 			name:  "nil element is null",
 			value: NewArray([]Value{nil}),
 			want:  "*1\r\n_\r\n",

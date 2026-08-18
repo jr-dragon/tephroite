@@ -1,5 +1,7 @@
 package resp
 
+import "bytes"
+
 var (
 	OKValue = ok{}
 
@@ -8,5 +10,7 @@ var (
 )
 
 type ok struct{}
+
+func (ok) marshalTo(buf *bytes.Buffer) { buf.WriteString("+OK\r\n") }
 
 func (ok) Marshal() []byte { return []byte("+OK\r\n") }

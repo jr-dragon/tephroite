@@ -61,6 +61,11 @@ func TestBigNumberMarshal(t *testing.T) {
 			want:  "(0\r\n",
 		},
 		{
+			name:  "nil is zero",
+			value: nil,
+			want:  "(0\r\n",
+		},
+		{
 			name:  "larger than int64",
 			value: mustBigInt(t, "3492890328409238509324850943850943825024385"),
 			want:  "(3492890328409238509324850943850943825024385\r\n",
@@ -77,6 +82,10 @@ func TestBigNumberMarshal(t *testing.T) {
 			assertMarshaledValue(t, NewBigNumber(tt.value), tt.want)
 		})
 	}
+
+	t.Run("zero value", func(t *testing.T) {
+		assertMarshaledValue(t, BigNumber{}, "(0\r\n")
+	})
 }
 
 func TestBulkErrorMarshal(t *testing.T) {
@@ -185,6 +194,11 @@ func TestAttributeMarshal(t *testing.T) {
 			}),
 			want: "|1\r\n+ttl\r\n:3600\r\n",
 		},
+		{
+			name:  "nil key and value are null",
+			value: NewAttribute([]MapEntry{{}}),
+			want:  "|1\r\n_\r\n_\r\n",
+		},
 	}
 
 	for _, tt := range tests {
@@ -230,6 +244,11 @@ func TestPushMarshal(t *testing.T) {
 				NewBulkString("payload"),
 			}),
 			want: ">3\r\n+message\r\n$7\r\nchannel\r\n$7\r\npayload\r\n",
+		},
+		{
+			name:  "nil value is null",
+			value: NewPush([]Value{nil}),
+			want:  ">1\r\n_\r\n",
 		},
 	}
 
