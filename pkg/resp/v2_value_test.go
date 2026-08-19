@@ -1,7 +1,9 @@
 package resp
 
 import (
+	"bytes"
 	"errors"
+	"io"
 	"math"
 	"testing"
 )
@@ -33,6 +35,35 @@ func TestSimpleStringMarshal(t *testing.T) {
 	}
 }
 
+func TestBuildSimpleString(t *testing.T) {
+	tests := []struct {
+		name   string
+		data   []byte
+		expect string
+	}{
+		{
+			name: "empty",
+			data: []byte("+\r\n"),
+		},
+		{
+			name: "text",
+			data: []byte("+PONG\r\n"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := BuildSimpleString(tt.data)
+			if err != nil {
+				t.Errorf("unexpected error: %s", err.Error())
+				return
+			}
+
+			assertMarshaledValue(t, got, string(tt.data))
+		})
+	}
+}
+
 func TestSimpleErrorMarshal(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -54,6 +85,34 @@ func TestSimpleErrorMarshal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assertMarshaledValue(t, tt.value, tt.want)
+		})
+	}
+}
+
+func TestBuildSimpleError(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "nil err",
+			data: []byte("-ERR\r\n"),
+		},
+		{
+			name: "error message",
+			data: []byte("-ERR unknown error\r\n"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := BuildSimpleError(tt.data)
+			if err != nil {
+				t.Errorf("unexpected error: %s", err.Error())
+				return
+			}
+
+			assertMarshaledValue(t, got, string(tt.data))
 		})
 	}
 }
@@ -89,6 +148,42 @@ func TestIntegerMarshal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assertMarshaledValue(t, tt.value, tt.want)
+		})
+	}
+}
+
+func TestBuildInteger(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "zero",
+			data: []byte(":0\r\n"),
+		},
+		{
+			name: "negative",
+			data: []byte(":-42\r\n"),
+		},
+		{
+			name: "maximum",
+			data: []byte(":9223372036854775807\r\n"),
+		},
+		{
+			name: "minimum",
+			data: []byte(":-9223372036854775808\r\n"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := BuildInteger(tt.data)
+			if err != nil {
+				t.Errorf("unexpected error: %s", err.Error())
+				return
+			}
+
+			assertMarshaledValue(t, got, string(tt.data))
 		})
 	}
 }
@@ -129,6 +224,58 @@ func TestBulkStringMarshal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assertMarshaledValue(t, tt.value, tt.want)
+		})
+	}
+}
+
+func TestBuildBulkString(t *testing.T) {
+	tests := []struct {
+		name   string
+		header []byte
+		reader io.Reader
+		expect string
+	}{
+		{
+			name:   "null",
+			header: []byte("$-1\r\n"),
+			reader: nil,
+			expect: "$-1\r\n",
+		},
+		{
+			name:   "empty",
+			header: []byte("$0\r\n"),
+			reader: bytes.NewBufferString("\r\n"),
+			expect: "$0\r\n\r\n",
+		},
+		{
+			name:   "text",
+			header: []byte("$5\r\n"),
+			reader: bytes.NewBufferString("hello\r\n"),
+			expect: "$5\r\nhello\r\n",
+		},
+		{
+			name:   "length is measured in bytes",
+			header: []byte("$6\r\n"),
+			reader: bytes.NewBufferString("你好\r\n"),
+			expect: "$6\r\n你好\r\n",
+		},
+		{
+			name:   "embedded sentinel",
+			header: []byte("$4\r\n"),
+			reader: bytes.NewBufferString("a\r\nb\r\n"),
+			expect: "$4\r\na\r\nb\r\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := BuildBulkString(tt.header, tt.reader)
+			if err != nil {
+				t.Errorf("unexpected error: %s", err.Error())
+				return
+			}
+
+			assertMarshaledValue(t, got, tt.expect)
 		})
 	}
 }
@@ -196,6 +343,100 @@ func TestArrayMarshal(t *testing.T) {
 			assertMarshaledValue(t, tt.value, tt.want)
 		})
 	}
+}
+
+func TestBuildArray(t *testing.T) {
+	tests := []struct {
+		name   string
+		header []byte
+		reader io.Reader
+		want   string
+	}{
+		{
+			name:   "null",
+			header: []byte("*-1\r\n"),
+			want:   "*-1\r\n",
+		},
+		{
+			name:   "empty",
+			header: []byte("*0\r\n"),
+			want:   "*0\r\n",
+		},
+		{
+			name:   "mixed values",
+			header: []byte("*4\r\n"),
+			reader: bytes.NewBufferString("+OK\r\n:-2\r\n$3\r\nhey\r\n-ERR failure\r\n"),
+			want:   "*4\r\n+OK\r\n:-2\r\n$3\r\nhey\r\n-ERR failure\r\n",
+		},
+		{
+			name:   "nested array",
+			header: []byte("*1\r\n"),
+			reader: bytes.NewBufferString("*1\r\n$4\r\nPING\r\n"),
+			want:   "*1\r\n*1\r\n$4\r\nPING\r\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := BuildArray(tt.header, tt.reader)
+			if err != nil {
+				t.Fatalf("BuildArray() error = %v", err)
+			}
+
+			assertMarshaledValue(t, got, tt.want)
+		})
+	}
+}
+
+func TestBuildArrayError(t *testing.T) {
+	tests := []struct {
+		name   string
+		header []byte
+		reader io.Reader
+	}{
+		{
+			name:   "invalid length",
+			header: []byte("*invalid\r\n"),
+		},
+		{
+			name:   "missing value",
+			header: []byte("*1\r\n"),
+		},
+		{
+			name:   "truncated values",
+			header: []byte("*2\r\n"),
+			reader: bytes.NewBufferString("+OK\r\n"),
+		},
+		{
+			name:   "unsupported value",
+			header: []byte("*1\r\n"),
+			reader: bytes.NewBufferString("?unknown\r\n"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := BuildArray(tt.header, tt.reader); err == nil {
+				t.Fatal("BuildArray() error = nil, want non-nil")
+			}
+		})
+	}
+}
+
+func TestReaderReadsValueAfterArray(t *testing.T) {
+	rd := NewReader(bytes.NewBufferString("*1\r\n$4\r\nPING\r\n+PONG\r\n"))
+
+	array, err := rd.Read()
+	if err != nil {
+		t.Fatalf("Read() array error = %v", err)
+	}
+	assertMarshaledValue(t, array, "*1\r\n$4\r\nPING\r\n")
+
+	value, err := rd.Read()
+	if err != nil {
+		t.Fatalf("Read() following value error = %v", err)
+	}
+	assertMarshaledValue(t, value, "+PONG\r\n")
 }
 
 func assertMarshaledValue(t *testing.T, value Value, want string) {

@@ -2,6 +2,8 @@ package resp
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"strconv"
 )
 
@@ -43,6 +45,13 @@ type Value interface {
 
 type SimpleString []byte
 
+func BuildSimpleString(src []byte) (SimpleString, error) {
+	src = src[1 : len(src)-2]
+	dst := make([]byte, len(src))
+	copy(dst, src)
+	return SimpleString(dst), nil
+}
+
 func (v SimpleString) marshalTo(buf *bytes.Buffer) {
 	if buf == nil {
 		buf = &bytes.Buffer{}
@@ -72,6 +81,17 @@ func NewSimpleError(err error) SimpleError {
 	return SimpleError{err: err, typ: ERRTYPE_DEFAULT}
 }
 
+func BuildSimpleError(src []byte) (SimpleError, error) {
+	src = src[1 : len(src)-2]
+	for i, b := range src {
+		if b == ' ' {
+			return SimpleError{typ: string(src[:i]), err: errors.New(string(src[i+1:]))}, nil
+		}
+	}
+
+	return SimpleError{typ: string(src), err: nil}, nil
+}
+
 func (v SimpleError) marshalTo(buf *bytes.Buffer) {
 	buf.WriteByte(MAGIC_SIMPLE_ERROR)
 	buf.WriteString(v.typ)
@@ -89,6 +109,12 @@ func (v SimpleError) Marshal() []byte {
 }
 
 type Integer int64
+
+func BuildInteger(src []byte) (Integer, error) {
+	src = src[1 : len(src)-2]
+	i, err := strconv.Atoi(string(src))
+	return Integer(int64(i)), err
+}
 
 func (v Integer) marshalTo(buf *bytes.Buffer) {
 	buf.WriteByte(MAGIC_INTEGER)
@@ -109,6 +135,33 @@ type BulkString struct {
 
 func NewBulkString(s string) BulkString {
 	return BulkString{data: s}
+}
+
+func BuildBulkString(header []byte, rd io.Reader) (BulkString, error) {
+	header = header[1 : len(header)-2]
+	if header[0] == '-' {
+		return BulkString{null: true}, nil
+	}
+
+	length, err := strconv.Atoi(string(header))
+	if err != nil {
+		return BulkString{}, err
+	}
+
+	buf := make([]byte, length)
+	if _, err := io.ReadFull(rd, buf); err != nil {
+		return BulkString{}, err
+	}
+
+	var sentinel [len(SENTINEL)]byte
+	if _, err := io.ReadFull(rd, sentinel[:]); err != nil {
+		return BulkString{}, err
+	}
+	if string(sentinel[:]) != SENTINEL {
+		return BulkString{}, errors.New("invalid bulk string sentinel")
+	}
+
+	return BulkString{data: string(buf)}, nil
 }
 
 func (v BulkString) marshalTo(buf *bytes.Buffer) {
@@ -144,6 +197,37 @@ type Array struct {
 
 func NewArray(data []Value) Array {
 	return Array{data: data}
+}
+
+func BuildArray(header []byte, rd io.Reader) (Array, error) {
+	header = header[1 : len(header)-2]
+	if header[0] == '-' {
+		return Array{null: true}, nil
+	}
+
+	length, err := strconv.Atoi(string(header))
+	if err != nil {
+		return Array{}, err
+	}
+
+	arr := Array{data: make([]Value, 0, length)}
+	if length == 0 {
+		return arr, nil
+	}
+	if rd == nil {
+		return arr, io.ErrUnexpectedEOF
+	}
+
+	vrd := NewReader(rd)
+	for range length {
+		value, err := vrd.Read()
+		if err != nil {
+			return arr, err
+		}
+		arr.data = append(arr.data, value)
+	}
+
+	return arr, nil
 }
 
 func (v Array) marshalTo(buf *bytes.Buffer) {
