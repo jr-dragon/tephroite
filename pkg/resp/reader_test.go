@@ -30,6 +30,16 @@ func TestReader_Read(t *testing.T) {
 			name:    "array",
 			payload: []byte("*2\r\n$4\r\nPING\r\n$4\r\nPONG\r\n"),
 		},
+		{name: "null", payload: []byte("_\r\n")},
+		{name: "boolean", payload: []byte("#t\r\n")},
+		{name: "double", payload: []byte(",1.5\r\n")},
+		{name: "big number", payload: []byte("(3492890328409238509324850943850943825024385\r\n")},
+		{name: "bulk error", payload: []byte("!11\r\nERR failure\r\n")},
+		{name: "verbatim string", payload: []byte("=8\r\ntxt:text\r\n")},
+		{name: "map", payload: []byte("%1\r\n+key\r\n:1\r\n")},
+		{name: "attribute", payload: []byte("|1\r\n+ttl\r\n:10\r\n")},
+		{name: "set", payload: []byte("~2\r\n:1\r\n:2\r\n")},
+		{name: "push", payload: []byte(">2\r\n+message\r\n$4\r\ndata\r\n")},
 	}
 
 	for _, tt := range tests {

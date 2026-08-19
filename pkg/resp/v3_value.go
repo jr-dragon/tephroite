@@ -2,6 +2,8 @@ package resp
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"math"
 	"math/big"
 	"strconv"
@@ -52,6 +54,12 @@ func (v Boolean) Marshal() []byte {
 
 type Double float64
 
+func BuildDouble(src []byte) (Double, error) {
+	src = src[1 : len(src)-2]
+	parsed, err := strconv.ParseFloat(string(src), 64)
+	return Double(parsed), err
+}
+
 func (v Double) marshalTo(buf *bytes.Buffer) {
 	buf.WriteByte(MAGIC_DOUBLE)
 
@@ -79,6 +87,18 @@ type BigNumber struct {
 	val *big.Int
 }
 
+func BuildBigNumber(src []byte) (BigNumber, error) {
+	src = src[1 : len(src)-2]
+
+	var ok bool
+	n := BigNumber{}
+	n.val, ok = new(big.Int).SetString(string(src), 10)
+	if !ok {
+		return BigNumber{}, errors.New("failed to parse big number")
+	}
+	return n, nil
+}
+
 func NewBigNumber(val *big.Int) BigNumber {
 	if val == nil {
 		return BigNumber{val: big.NewInt(0)}
@@ -104,6 +124,15 @@ func (v BigNumber) Marshal() []byte {
 }
 
 type BulkError []byte
+
+func BuildBulkError(header []byte, rd io.Reader) (BulkError, error) {
+	data, err := readBlob(header, rd)
+	if err != nil {
+		return nil, err
+	}
+
+	return BulkError(data), nil
+}
 
 func NewBulkError(err error) BulkError {
 	if err == nil {
@@ -140,6 +169,21 @@ type VerbatimString struct {
 	data     string
 }
 
+func BuildVerbatimString(header []byte, rd io.Reader) (VerbatimString, error) {
+	payload, err := readBlob(header, rd)
+	if err != nil {
+		return VerbatimString{}, err
+	}
+	if len(payload) < 4 || payload[3] != ':' {
+		return VerbatimString{}, errors.New("invalid verbatim string format")
+	}
+
+	var encoding [3]byte
+	copy(encoding[:], payload[:3])
+
+	return VerbatimString{encoding: encoding, data: string(payload[4:])}, nil
+}
+
 func NewVerbatimString(encoding [3]byte, data string) VerbatimString {
 	return VerbatimString{encoding: encoding, data: data}
 }
@@ -170,6 +214,11 @@ type MapEntry struct {
 
 type Map struct {
 	data []MapEntry
+}
+
+func BuildMap(header []byte, rd io.Reader) (Map, error) {
+	entries, err := readMapEntries(header, rd)
+	return Map{data: entries}, err
 }
 
 func NewMap(data []MapEntry) Map {
@@ -206,6 +255,11 @@ type Attribute struct {
 	data []MapEntry
 }
 
+func BuildAttribute(header []byte, rd io.Reader) (Attribute, error) {
+	entries, err := readMapEntries(header, rd)
+	return Attribute{data: entries}, err
+}
+
 func NewAttribute(data []MapEntry) Attribute {
 	return Attribute{data: data}
 }
@@ -239,6 +293,11 @@ type Set struct {
 	data []Value
 }
 
+func BuildSet(header []byte, rd io.Reader) (Set, error) {
+	values, err := readValues(header, rd)
+	return Set{data: values}, err
+}
+
 func NewSet(data []Value) Set {
 	return Set{data: data}
 }
@@ -267,6 +326,11 @@ type Push struct {
 	data []Value
 }
 
+func BuildPush(header []byte, rd io.Reader) (Push, error) {
+	values, err := readValues(header, rd)
+	return Push{data: values}, err
+}
+
 func NewPush(data []Value) Push {
 	return Push{data: data}
 }
@@ -289,4 +353,97 @@ func (v Push) Marshal() []byte {
 	var buf bytes.Buffer
 	v.marshalTo(&buf)
 	return buf.Bytes()
+}
+
+func readBlob(header []byte, rd io.Reader) ([]byte, error) {
+	length, err := parseLength(header)
+	if err != nil {
+		return nil, err
+	}
+	if rd == nil {
+		return nil, io.ErrUnexpectedEOF
+	}
+
+	data := make([]byte, length)
+	if _, err := io.ReadFull(rd, data); err != nil {
+		return nil, err
+	}
+
+	var sentinel [len(SENTINEL)]byte
+	if _, err := io.ReadFull(rd, sentinel[:]); err != nil {
+		return nil, err
+	}
+	if string(sentinel[:]) != SENTINEL {
+		return nil, errors.New("invalid blob sentinel")
+	}
+
+	return data, nil
+}
+
+func readMapEntries(header []byte, rd io.Reader) ([]MapEntry, error) {
+	length, err := parseLength(header)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]MapEntry, 0, length)
+	if length == 0 {
+		return entries, nil
+	}
+	if rd == nil {
+		return entries, io.ErrUnexpectedEOF
+	}
+
+	vrd := NewReader(rd)
+	for range length {
+		key, err := vrd.Read()
+		if err != nil {
+			return entries, err
+		}
+		value, err := vrd.Read()
+		if err != nil {
+			return entries, err
+		}
+		entries = append(entries, MapEntry{Key: key, Value: value})
+	}
+
+	return entries, nil
+}
+
+func readValues(header []byte, rd io.Reader) ([]Value, error) {
+	length, err := parseLength(header)
+	if err != nil {
+		return nil, err
+	}
+
+	values := make([]Value, 0, length)
+	if length == 0 {
+		return values, nil
+	}
+	if rd == nil {
+		return values, io.ErrUnexpectedEOF
+	}
+
+	vrd := NewReader(rd)
+	for range length {
+		value, err := vrd.Read()
+		if err != nil {
+			return values, err
+		}
+		values = append(values, value)
+	}
+
+	return values, nil
+}
+
+func parseLength(header []byte) (int, error) {
+	length, err := strconv.Atoi(string(header[1 : len(header)-2]))
+	if err != nil {
+		return 0, err
+	}
+	if length < 0 {
+		return 0, errors.New("length must not be negative")
+	}
+
+	return length, nil
 }

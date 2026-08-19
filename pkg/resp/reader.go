@@ -39,6 +39,26 @@ func (rd *Reader) Read() (Value, error) {
 		return BuildBulkString(header, rd.rd)
 	case MAGIC_ARRAY:
 		return BuildArray(header, rd.rd)
+	case MAGIC_NULL:
+		return Null{}, nil
+	case MAGIC_BOOLEAN:
+		return Boolean(header[1] == 't'), nil
+	case MAGIC_DOUBLE:
+		return BuildDouble(header)
+	case MAGIC_BIG_NUMBER:
+		return BuildBigNumber(header)
+	case MAGIC_BULK_ERROR:
+		return BuildBulkError(header, rd.rd)
+	case MAGIC_VERBATIM_STRING:
+		return BuildVerbatimString(header, rd.rd)
+	case MAGIC_MAP:
+		return BuildMap(header, rd.rd)
+	case MAGIC_ATTRIBUTE:
+		return BuildAttribute(header, rd.rd)
+	case MAGIC_SET:
+		return BuildSet(header, rd.rd)
+	case MAGIC_PUSH:
+		return BuildPush(header, rd.rd)
 	}
 
 	return nil, fmt.Errorf("unsupported RESP value type %q", header[0])
