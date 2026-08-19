@@ -24,8 +24,8 @@ func (rd *Reader) Read() (Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(header) < len(SENTINEL)+1 || string(header[len(header)-len(SENTINEL):]) != SENTINEL {
-		return nil, errors.New("invalid RESP header sentinel")
+	if len(header) < 3 || header[len(header)-2] != '\r' {
+		return nil, errors.New("invalid RESP format")
 	}
 
 	switch header[0] {
