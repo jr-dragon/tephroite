@@ -15,8 +15,9 @@ const (
 )
 
 var (
-	errInvalidHeader  = errors.New("invalid RESP header")
-	errNegativeLength = errors.New("negative length")
+	errInvalidHeader      = errors.New("resp: invalid header")
+	errNegativeLength     = errors.New("resp: negative length")
+	errUnexpectedSentinel = errors.New("resp: unexpected sentinel")
 )
 
 // numericBuffer returns spare buffer storage for strconv's append functions.
@@ -49,10 +50,10 @@ func readBlob(header []byte, rd io.Reader) ([]byte, error) {
 
 	buf := make([]byte, length+2)
 	if _, err := io.ReadFull(rd, buf); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resp: %w", io.ErrUnexpectedEOF)
 	}
 	if len(buf) < 2 || (buf[len(buf)-2] != '\r' && buf[len(buf)-1] != '\n') {
-		return nil, errors.New("unexpected sentinel")
+		return nil, errUnexpectedSentinel
 	}
 
 	return buf[:len(buf)-2], nil
@@ -107,7 +108,7 @@ func readValues(header []byte, rd io.Reader) ([]Value, error) {
 		return values, nil
 	}
 	if rd == nil {
-		return values, io.ErrUnexpectedEOF
+		return values, fmt.Errorf("resp: %w", io.ErrUnexpectedEOF)
 	}
 
 	vrd := NewReader(rd)

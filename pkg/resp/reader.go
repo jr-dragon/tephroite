@@ -21,7 +21,7 @@ func NewReader(rd io.Reader) *Reader {
 func (rd *Reader) Read() (Value, error) {
 	header, err := rd.rd.ReadBytes('\n')
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resp: %w: %w", io.EOF, err)
 	}
 	if len(header) < 3 || header[len(header)-2] != '\r' {
 		return nil, fmt.Errorf("%w: %s", errInvalidHeader, header)

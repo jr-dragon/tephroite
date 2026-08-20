@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"errors"
+	"io"
 	"log/slog"
 	"sync"
 
@@ -42,16 +44,19 @@ func (srv *RESPServer) OnBoot(eng gnet.Engine) gnet.Action {
 }
 
 func (srv *RESPServer) OnTraffic(c gnet.Conn) gnet.Action {
-	v, err := resp.NewReader(c).Read()
-	if err != nil {
-		c.Write(resp.NewSimpleError(err).Marshal())
-		return gnet.None
+	rd := resp.NewReader(c)
+	for {
+		v, err := rd.Read()
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				c.Write(resp.NewSimpleError(err).Marshal())
+			}
+			return gnet.None
+		}
+
+		slog.Info("recieved resp", slog.Any("value", v))
+		c.Write(resp.OKValue.Marshal())
 	}
-
-	slog.Info("recieved resp", slog.Any("value", v))
-	c.Write(resp.OKValue.Marshal())
-
-	return gnet.None
 }
 
 func (srv *RESPServer) Shutdown(ctx context.Context) error {

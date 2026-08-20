@@ -103,7 +103,7 @@ func BuildBigNumber(src []byte) (BigNumber, error) {
 	n := BigNumber{}
 	n.val, ok = new(big.Int).SetString(string(src), 10)
 	if !ok {
-		return BigNumber{}, errors.New("failed to parse big number")
+		return BigNumber{}, errors.New("resp: failed to parse big number")
 	}
 	return n, nil
 }
@@ -182,7 +182,7 @@ func BuildVerbatimString(header []byte, rd io.Reader) (VerbatimString, error) {
 	}
 
 	if len(buf) < 4 || buf[3] != ':' {
-		return VerbatimString{}, errors.New("invalid verbatim string")
+		return VerbatimString{}, errors.New("resp: invalid verbatim string")
 	}
 
 	vs := VerbatimString{data: string(buf[4:])}
