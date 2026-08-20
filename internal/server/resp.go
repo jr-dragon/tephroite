@@ -3,9 +3,9 @@ package server
 import (
 	"context"
 	"log/slog"
-	"strings"
 	"sync"
 
+	"github.com/jr-dragon/tephroite/pkg/resp"
 	"github.com/panjf2000/gnet/v2"
 )
 
@@ -42,8 +42,14 @@ func (srv *RESPServer) OnBoot(eng gnet.Engine) gnet.Action {
 }
 
 func (srv *RESPServer) OnTraffic(c gnet.Conn) gnet.Action {
-	buf, _ := c.Next(-1)
-	c.Write([]byte(strings.ToUpper(string(buf))))
+	v, err := resp.NewReader(c).Read()
+	if err != nil {
+		c.Write(resp.NewSimpleError(err).Marshal())
+		return gnet.None
+	}
+
+	slog.Info("recieved resp", slog.Any("value", v))
+	c.Write(resp.OKValue.Marshal())
 
 	return gnet.None
 }

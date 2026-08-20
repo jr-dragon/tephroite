@@ -2,7 +2,6 @@ package resp
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 )
@@ -25,7 +24,7 @@ func (rd *Reader) Read() (Value, error) {
 		return nil, err
 	}
 	if len(header) < 3 || header[len(header)-2] != '\r' {
-		return nil, errors.New("invalid RESP format")
+		return nil, fmt.Errorf("%w: %s", errInvalidHeader, header)
 	}
 
 	switch header[0] {
@@ -59,7 +58,7 @@ func (rd *Reader) Read() (Value, error) {
 		return BuildSet(header, rd.rd)
 	case MAGIC_PUSH:
 		return BuildPush(header, rd.rd)
+	default:
+		return BuildInlineArray(header)
 	}
-
-	return nil, fmt.Errorf("unsupported RESP value type %q", header[0])
 }

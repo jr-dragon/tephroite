@@ -169,6 +169,17 @@ func BuildArray(header []byte, rd io.Reader) (Array, error) {
 	return Array{data: values}, err
 }
 
+func BuildInlineArray(header []byte) (Array, error) {
+	splitted := bytes.Split(header[:len(header)-2], []byte{' '})
+
+	strs := make([]Value, 0, len(splitted))
+	for _, s := range splitted {
+		strs = append(strs, NewBulkString(string(s)))
+	}
+
+	return Array{data: strs}, nil
+}
+
 func (v Array) marshalTo(buf *bytes.Buffer) {
 	if v.null {
 		buf.WriteString("*-1\r\n")

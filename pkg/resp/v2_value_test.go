@@ -407,11 +407,6 @@ func TestBuildArrayError(t *testing.T) {
 			header: []byte("*2\r\n"),
 			reader: bytes.NewBufferString("+OK\r\n"),
 		},
-		{
-			name:   "unsupported value",
-			header: []byte("*1\r\n"),
-			reader: bytes.NewBufferString("?unknown\r\n"),
-		},
 	}
 
 	for _, tt := range tests {
@@ -419,6 +414,37 @@ func TestBuildArrayError(t *testing.T) {
 			if _, err := BuildArray(tt.header, tt.reader); err == nil {
 				t.Fatal("BuildArray() error = nil, want non-nil")
 			}
+		})
+	}
+}
+
+func TestBuildInlineArray(t *testing.T) {
+	tests := []struct {
+		name    string
+		payload []byte
+		want    string
+	}{
+		{
+			name:    "without separator",
+			payload: []byte("PING\r\n"),
+			want:    "*1\r\n$4\r\nPING\r\n",
+		},
+		{
+			name:    "with separator",
+			payload: []byte("SET foo bar\r\n"),
+			want:    "*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := BuildInlineArray(tt.payload)
+			if err != nil {
+				t.Errorf("unexpected error: %s", err.Error())
+				return
+			}
+
+			assertMarshaledValue(t, got, tt.want)
 		})
 	}
 }

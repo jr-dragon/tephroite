@@ -589,13 +589,6 @@ func TestBuildAggregateError(t *testing.T) {
 				return err
 			},
 		},
-		{
-			name: "set unsupported value",
-			build: func() error {
-				_, err := BuildSet([]byte("~1\r\n"), bytes.NewBufferString("?unknown\r\n"))
-				return err
-			},
-		},
 	}
 
 	for _, tt := range tests {
