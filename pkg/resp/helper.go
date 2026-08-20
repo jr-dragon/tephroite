@@ -39,6 +39,9 @@ func readBlob(header []byte, rd io.Reader) ([]byte, error) {
 	if _, err := io.ReadFull(rd, buf); err != nil {
 		return nil, err
 	}
+	if len(buf) < 2 || (buf[len(buf)-2] != '\r' && buf[len(buf)-1] != '\n') {
+		return nil, errors.New("unexpected sentinel")
+	}
 
 	return buf[:len(buf)-2], nil
 }
@@ -100,6 +103,10 @@ func readValues(header []byte, rd io.Reader) ([]Value, error) {
 }
 
 func parseLength(header []byte) (int, error) {
+	if len(header) < 1 {
+		return 0, errors.New("invalid length")
+	}
+
 	if header[0] == '-' {
 		return 0, ErrNegLength
 	}

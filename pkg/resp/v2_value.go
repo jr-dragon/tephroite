@@ -122,21 +122,16 @@ func NewBulkString(s string) BulkString {
 func BuildBulkString(header []byte, rd io.Reader) (BulkString, error) {
 	header = header[1 : len(header)-2]
 
-	length, err := parseLength(header)
+	buf, err := readBlob(header, rd)
 	if err != nil {
 		if errors.Is(err, ErrNegLength) {
 			return BulkString{null: true}, nil
 		} else {
-			return BulkString{}, nil
+			return BulkString{}, err
 		}
 	}
 
-	buf := make([]byte, length+2)
-	if _, err := io.ReadFull(rd, buf); err != nil {
-		return BulkString{}, err
-	}
-
-	return BulkString{data: string(buf[:len(buf)-2])}, nil
+	return BulkString{data: string(buf)}, nil
 }
 
 func (v BulkString) marshalTo(buf *bytes.Buffer) {
