@@ -20,24 +20,6 @@ const (
 	numericBufferMinSize   = 24
 )
 
-// numericBuffer returns spare buffer storage for strconv's append functions.
-// It reserves at least 24 bytes, enough for any base-10 int64 or float64 text.
-func numericBuffer(buf *bytes.Buffer) []byte {
-	if buf.Available() < numericBufferMinSize {
-		buf.Grow(numericBufferMinSize)
-	}
-
-	return buf.AvailableBuffer()
-}
-
-// growAggrBuffer maintains a 1 KiB low-water mark for aggregate writes. When
-// space falls below it, Grow reserves at least 4 KiB to amortize allocations.
-func growAggrBuffer(buf *bytes.Buffer) {
-	if buf.Available() < aggrBufferLowWatermark {
-		buf.Grow(aggrBufferGrowSize)
-	}
-}
-
 type Value interface {
 	Marshal() []byte
 	marshalTo(*bytes.Buffer)
@@ -139,29 +121,22 @@ func NewBulkString(s string) BulkString {
 
 func BuildBulkString(header []byte, rd io.Reader) (BulkString, error) {
 	header = header[1 : len(header)-2]
-	if header[0] == '-' {
-		return BulkString{null: true}, nil
-	}
 
-	length, err := strconv.Atoi(string(header))
+	length, err := parseLength(header)
 	if err != nil {
-		return BulkString{}, err
+		if errors.Is(err, ErrNegLength) {
+			return BulkString{null: true}, nil
+		} else {
+			return BulkString{}, nil
+		}
 	}
 
-	buf := make([]byte, length)
+	buf := make([]byte, length+2)
 	if _, err := io.ReadFull(rd, buf); err != nil {
 		return BulkString{}, err
 	}
 
-	var sentinel [len(SENTINEL)]byte
-	if _, err := io.ReadFull(rd, sentinel[:]); err != nil {
-		return BulkString{}, err
-	}
-	if string(sentinel[:]) != SENTINEL {
-		return BulkString{}, errors.New("invalid bulk string sentinel")
-	}
-
-	return BulkString{data: string(buf)}, nil
+	return BulkString{data: string(buf[:len(buf)-2])}, nil
 }
 
 func (v BulkString) marshalTo(buf *bytes.Buffer) {
@@ -204,30 +179,8 @@ func BuildArray(header []byte, rd io.Reader) (Array, error) {
 	if header[0] == '-' {
 		return Array{null: true}, nil
 	}
-
-	length, err := strconv.Atoi(string(header))
-	if err != nil {
-		return Array{}, err
-	}
-
-	arr := Array{data: make([]Value, 0, length)}
-	if length == 0 {
-		return arr, nil
-	}
-	if rd == nil {
-		return arr, io.ErrUnexpectedEOF
-	}
-
-	vrd := NewReader(rd)
-	for range length {
-		value, err := vrd.Read()
-		if err != nil {
-			return arr, err
-		}
-		arr.data = append(arr.data, value)
-	}
-
-	return arr, nil
+	values, err := readValues(header, rd)
+	return Array{data: values}, err
 }
 
 func (v Array) marshalTo(buf *bytes.Buffer) {

@@ -126,12 +126,10 @@ func (v BigNumber) Marshal() []byte {
 type BulkError []byte
 
 func BuildBulkError(header []byte, rd io.Reader) (BulkError, error) {
-	data, err := readBlob(header, rd)
-	if err != nil {
-		return nil, err
-	}
+	header = header[1 : len(header)-2]
 
-	return BulkError(data), nil
+	buf, err := readBlob(header, rd)
+	return BulkError(buf), err
 }
 
 func NewBulkError(err error) BulkError {
@@ -170,18 +168,20 @@ type VerbatimString struct {
 }
 
 func BuildVerbatimString(header []byte, rd io.Reader) (VerbatimString, error) {
-	payload, err := readBlob(header, rd)
+	header = header[1 : len(header)-2]
+
+	buf, err := readBlob(header, rd)
 	if err != nil {
 		return VerbatimString{}, err
 	}
-	if len(payload) < 4 || payload[3] != ':' {
-		return VerbatimString{}, errors.New("invalid verbatim string format")
+
+	if len(buf) < 4 || buf[3] != ':' {
+		return VerbatimString{}, errors.New("invalid verbatim string")
 	}
 
-	var encoding [3]byte
-	copy(encoding[:], payload[:3])
-
-	return VerbatimString{encoding: encoding, data: string(payload[4:])}, nil
+	vs := VerbatimString{data: string(buf[4:])}
+	copy(vs.encoding[:], buf[:3])
+	return vs, nil
 }
 
 func NewVerbatimString(encoding [3]byte, data string) VerbatimString {
@@ -217,6 +217,7 @@ type Map struct {
 }
 
 func BuildMap(header []byte, rd io.Reader) (Map, error) {
+	header = header[1 : len(header)-2]
 	entries, err := readMapEntries(header, rd)
 	return Map{data: entries}, err
 }
@@ -256,6 +257,7 @@ type Attribute struct {
 }
 
 func BuildAttribute(header []byte, rd io.Reader) (Attribute, error) {
+	header = header[1 : len(header)-2]
 	entries, err := readMapEntries(header, rd)
 	return Attribute{data: entries}, err
 }
@@ -294,6 +296,7 @@ type Set struct {
 }
 
 func BuildSet(header []byte, rd io.Reader) (Set, error) {
+	header = header[1 : len(header)-2]
 	values, err := readValues(header, rd)
 	return Set{data: values}, err
 }
@@ -327,6 +330,7 @@ type Push struct {
 }
 
 func BuildPush(header []byte, rd io.Reader) (Push, error) {
+	header = header[1 : len(header)-2]
 	values, err := readValues(header, rd)
 	return Push{data: values}, err
 }
@@ -353,97 +357,4 @@ func (v Push) Marshal() []byte {
 	var buf bytes.Buffer
 	v.marshalTo(&buf)
 	return buf.Bytes()
-}
-
-func readBlob(header []byte, rd io.Reader) ([]byte, error) {
-	length, err := parseLength(header)
-	if err != nil {
-		return nil, err
-	}
-	if rd == nil {
-		return nil, io.ErrUnexpectedEOF
-	}
-
-	data := make([]byte, length)
-	if _, err := io.ReadFull(rd, data); err != nil {
-		return nil, err
-	}
-
-	var sentinel [len(SENTINEL)]byte
-	if _, err := io.ReadFull(rd, sentinel[:]); err != nil {
-		return nil, err
-	}
-	if string(sentinel[:]) != SENTINEL {
-		return nil, errors.New("invalid blob sentinel")
-	}
-
-	return data, nil
-}
-
-func readMapEntries(header []byte, rd io.Reader) ([]MapEntry, error) {
-	length, err := parseLength(header)
-	if err != nil {
-		return nil, err
-	}
-
-	entries := make([]MapEntry, 0, length)
-	if length == 0 {
-		return entries, nil
-	}
-	if rd == nil {
-		return entries, io.ErrUnexpectedEOF
-	}
-
-	vrd := NewReader(rd)
-	for range length {
-		key, err := vrd.Read()
-		if err != nil {
-			return entries, err
-		}
-		value, err := vrd.Read()
-		if err != nil {
-			return entries, err
-		}
-		entries = append(entries, MapEntry{Key: key, Value: value})
-	}
-
-	return entries, nil
-}
-
-func readValues(header []byte, rd io.Reader) ([]Value, error) {
-	length, err := parseLength(header)
-	if err != nil {
-		return nil, err
-	}
-
-	values := make([]Value, 0, length)
-	if length == 0 {
-		return values, nil
-	}
-	if rd == nil {
-		return values, io.ErrUnexpectedEOF
-	}
-
-	vrd := NewReader(rd)
-	for range length {
-		value, err := vrd.Read()
-		if err != nil {
-			return values, err
-		}
-		values = append(values, value)
-	}
-
-	return values, nil
-}
-
-func parseLength(header []byte) (int, error) {
-	length, err := strconv.Atoi(string(header[1 : len(header)-2]))
-	if err != nil {
-		return 0, err
-	}
-	if length < 0 {
-		return 0, errors.New("length must not be negative")
-	}
-
-	return length, nil
 }

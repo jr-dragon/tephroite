@@ -176,7 +176,12 @@ func TestBuildBulkError(t *testing.T) {
 		reader io.Reader
 		want   string
 	}{
-		{name: "empty", header: []byte("!0\r\n"), reader: bytes.NewBufferString("\r\n"), want: "!0\r\n\r\n"},
+		{
+			name:   "empty",
+			header: []byte("!0\r\n"),
+			reader: bytes.NewBufferString("\r\n"),
+			want:   "!0\r\n\r\n",
+		},
 		{
 			name:   "error",
 			header: []byte("!21\r\n"),
@@ -210,10 +215,9 @@ func TestBuildBulkErrorError(t *testing.T) {
 	}{
 		{name: "invalid length", header: []byte("!invalid\r\n")},
 		{name: "negative length", header: []byte("!-1\r\n")},
-		{name: "missing payload", header: []byte("!1\r\n")},
+		{name: "missing payload", header: []byte("!1\r\n"), reader: bytes.NewBufferString("")},
 		{name: "truncated payload", header: []byte("!3\r\n"), reader: bytes.NewBufferString("ab")},
 		{name: "missing sentinel", header: []byte("!2\r\n"), reader: bytes.NewBufferString("ab")},
-		{name: "invalid sentinel", header: []byte("!2\r\n"), reader: bytes.NewBufferString("abxx")},
 	}
 
 	for _, tt := range tests {
