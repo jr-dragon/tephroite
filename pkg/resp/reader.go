@@ -42,7 +42,7 @@ func (rd *Reader) Read() (Value, error) {
 	case MAGIC_NULL:
 		return Null{}, nil
 	case MAGIC_BOOLEAN:
-		return Boolean(header[1] == 't'), nil
+		return BuildBoolean(header)
 	case MAGIC_DOUBLE:
 		return BuildDouble(header)
 	case MAGIC_BIG_NUMBER:

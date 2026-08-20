@@ -10,26 +10,11 @@ func TestReader_Read(t *testing.T) {
 		name    string
 		payload []byte
 	}{
-		{
-			name:    "simple string",
-			payload: []byte("+OK\r\n"),
-		},
-		{
-			name:    "simple error",
-			payload: []byte("-ERR unknown error\r\n"),
-		},
-		{
-			name:    "integer",
-			payload: []byte(":12345\r\n"),
-		},
-		{
-			name:    "bulk string",
-			payload: []byte("$5\r\nhello\r\n"),
-		},
-		{
-			name:    "array",
-			payload: []byte("*2\r\n$4\r\nPING\r\n$4\r\nPONG\r\n"),
-		},
+		{name: "simple string", payload: []byte("+OK\r\n")},
+		{name: "simple error", payload: []byte("-ERR unknown error\r\n")},
+		{name: "integer", payload: []byte(":12345\r\n")},
+		{name: "bulk string", payload: []byte("$5\r\nhello\r\n")},
+		{name: "array", payload: []byte("*2\r\n$4\r\nPING\r\n$4\r\nPONG\r\n")},
 		{name: "null", payload: []byte("_\r\n")},
 		{name: "boolean", payload: []byte("#t\r\n")},
 		{name: "double", payload: []byte(",1.5\r\n")},

@@ -14,10 +14,6 @@ const (
 	MAGIC_BULK_STRING   = '$'
 	MAGIC_ARRAY         = '*'
 	SENTINEL            = "\r\n"
-
-	aggrBufferLowWatermark = 1 << 10
-	aggrBufferGrowSize     = 4 << 10
-	numericBufferMinSize   = 24
 )
 
 type Value interface {
@@ -120,18 +116,14 @@ func NewBulkString(s string) BulkString {
 }
 
 func BuildBulkString(header []byte, rd io.Reader) (BulkString, error) {
-	header = header[1 : len(header)-2]
-
 	buf, err := readBlob(header, rd)
 	if err != nil {
-		if errors.Is(err, ErrNegLength) {
+		if errors.Is(err, errNegativeLength) {
 			return BulkString{null: true}, nil
-		} else {
-			return BulkString{}, err
 		}
 	}
 
-	return BulkString{data: string(buf)}, nil
+	return BulkString{data: string(buf)}, err
 }
 
 func (v BulkString) marshalTo(buf *bytes.Buffer) {
@@ -170,11 +162,10 @@ func NewArray(data []Value) Array {
 }
 
 func BuildArray(header []byte, rd io.Reader) (Array, error) {
-	header = header[1 : len(header)-2]
-	if header[0] == '-' {
+	values, err := readValues(header, rd)
+	if err != nil && errors.Is(err, errNegativeLength) {
 		return Array{null: true}, nil
 	}
-	values, err := readValues(header, rd)
 	return Array{data: values}, err
 }
 

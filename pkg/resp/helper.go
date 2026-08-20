@@ -3,12 +3,20 @@ package resp
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 )
 
+const (
+	aggrBufferLowWatermark = 1 << 10
+	aggrBufferGrowSize     = 4 << 10
+	numericBufferMinSize   = 24
+)
+
 var (
-	ErrNegLength = errors.New("negative length")
+	errInvalidHeader  = errors.New("invalid RESP header")
+	errNegativeLength = errors.New("negative length")
 )
 
 // numericBuffer returns spare buffer storage for strconv's append functions.
@@ -30,7 +38,11 @@ func growAggrBuffer(buf *bytes.Buffer) {
 }
 
 func readBlob(header []byte, rd io.Reader) ([]byte, error) {
-	length, err := parseLength(header)
+	if len(header) < 3 {
+		return nil, fmt.Errorf("%w: %s", errInvalidHeader, header)
+	}
+
+	length, err := parseLength(header[1 : len(header)-2])
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +59,11 @@ func readBlob(header []byte, rd io.Reader) ([]byte, error) {
 }
 
 func readMapEntries(header []byte, rd io.Reader) ([]MapEntry, error) {
-	length, err := parseLength(header)
+	if len(header) < 3 {
+		return nil, fmt.Errorf("%w: %s", errInvalidHeader, header)
+	}
+
+	length, err := parseLength(header[1 : len(header)-2])
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +93,11 @@ func readMapEntries(header []byte, rd io.Reader) ([]MapEntry, error) {
 }
 
 func readValues(header []byte, rd io.Reader) ([]Value, error) {
-	length, err := parseLength(header)
+	if len(header) < 3 {
+		return nil, fmt.Errorf("%w: %s", errInvalidHeader, header)
+	}
+
+	length, err := parseLength(header[1 : len(header)-2])
 	if err != nil {
 		return nil, err
 	}
@@ -104,11 +124,11 @@ func readValues(header []byte, rd io.Reader) ([]Value, error) {
 
 func parseLength(header []byte) (int, error) {
 	if len(header) < 1 {
-		return 0, errors.New("invalid length")
+		return 0, fmt.Errorf("%w: %v", errInvalidHeader, header)
 	}
 
 	if header[0] == '-' {
-		return 0, ErrNegLength
+		return 0, errNegativeLength
 	}
 
 	return strconv.Atoi(string(header))

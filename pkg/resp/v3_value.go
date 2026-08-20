@@ -3,6 +3,7 @@ package resp
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"math/big"
@@ -35,6 +36,14 @@ func (v Null) Marshal() []byte {
 }
 
 type Boolean bool
+
+func BuildBoolean(src []byte) (Boolean, error) {
+	if len(src) < 4 {
+		return Boolean(false), fmt.Errorf("%w: %s", errInvalidHeader, src)
+	}
+
+	return Boolean(src[1] == 't'), nil
+}
 
 func (v Boolean) marshalTo(buf *bytes.Buffer) {
 	if v {
@@ -126,7 +135,6 @@ func (v BigNumber) Marshal() []byte {
 type BulkError []byte
 
 func BuildBulkError(header []byte, rd io.Reader) (BulkError, error) {
-	header = header[1 : len(header)-2]
 
 	buf, err := readBlob(header, rd)
 	return BulkError(buf), err
@@ -168,8 +176,6 @@ type VerbatimString struct {
 }
 
 func BuildVerbatimString(header []byte, rd io.Reader) (VerbatimString, error) {
-	header = header[1 : len(header)-2]
-
 	buf, err := readBlob(header, rd)
 	if err != nil {
 		return VerbatimString{}, err
@@ -217,7 +223,6 @@ type Map struct {
 }
 
 func BuildMap(header []byte, rd io.Reader) (Map, error) {
-	header = header[1 : len(header)-2]
 	entries, err := readMapEntries(header, rd)
 	return Map{data: entries}, err
 }
@@ -257,7 +262,6 @@ type Attribute struct {
 }
 
 func BuildAttribute(header []byte, rd io.Reader) (Attribute, error) {
-	header = header[1 : len(header)-2]
 	entries, err := readMapEntries(header, rd)
 	return Attribute{data: entries}, err
 }
@@ -296,7 +300,6 @@ type Set struct {
 }
 
 func BuildSet(header []byte, rd io.Reader) (Set, error) {
-	header = header[1 : len(header)-2]
 	values, err := readValues(header, rd)
 	return Set{data: values}, err
 }
@@ -330,7 +333,6 @@ type Push struct {
 }
 
 func BuildPush(header []byte, rd io.Reader) (Push, error) {
-	header = header[1 : len(header)-2]
 	values, err := readValues(header, rd)
 	return Push{data: values}, err
 }
