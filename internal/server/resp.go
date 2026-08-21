@@ -1,11 +1,14 @@
 package server
 
 import (
+	"bufio"
 	"context"
+	"errors"
+	"io"
 	"log/slog"
-	"strings"
 	"sync"
 
+	"github.com/jr-dragon/tephroite/pkg/resp"
 	"github.com/panjf2000/gnet/v2"
 )
 
@@ -42,10 +45,20 @@ func (srv *RESPServer) OnBoot(eng gnet.Engine) gnet.Action {
 }
 
 func (srv *RESPServer) OnTraffic(c gnet.Conn) gnet.Action {
-	buf, _ := c.Next(-1)
-	c.Write([]byte(strings.ToUpper(string(buf))))
+	rd := resp.NewReader(c)
+	wr := bufio.NewWriter(c)
+	defer wr.Flush()
+	for {
+		_, err := rd.Read()
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				c.Write(resp.NewSimpleError(err).Marshal())
+			}
+			return gnet.None
+		}
 
-	return gnet.None
+		wr.Write(resp.OKValue.Marshal())
+	}
 }
 
 func (srv *RESPServer) Shutdown(ctx context.Context) error {

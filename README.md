@@ -1,8 +1,8 @@
 # Tephroite
 
 Tephroite is a high-performance, in-memory key-value storage service written in
-Go. The current server is an early prototype that runs an uppercase echo service
-on gnet alongside a local pprof HTTP server.
+Go. The current server is an early prototype that accepts RESP2, RESP3, and
+inline-encoded values on gnet alongside a local pprof HTTP server.
 
 ## Requirements
 
@@ -35,13 +35,23 @@ The process starts these listeners:
 
 | Service | Address | Current behavior |
 | --- | --- | --- |
-| Echo server | `tcp://:16379` | Converts each received payload to uppercase and writes it back |
+| RESP server | `tcp://:16379` | Decodes supported RESP or inline values and replies with `+OK` for each value |
 | pprof HTTP server | `http://localhost:6060/debug/pprof/` | Exposes Go runtime profiling endpoints locally |
 
-The echo listener binds to all available interfaces. It is a prototype and does
-not yet implement the RESP protocol or key-value operations.
+The RESP listener binds to all available interfaces. It supports pipelined
+values, so each successfully decoded value receives a response in input order.
+For example, with the server running:
 
-Send `SIGINT` or `SIGTERM` to stop the process. The HTTP and echo servers start
+```sh
+printf 'PING\r\n*1\r\n$4\r\nPING\r\n' | nc -w 1 localhost 16379
+```
+
+The server responds with two `+OK` values. It does not execute commands or store
+data yet, so it is not a functional key-value server. See
+[RESP support](./docs/resp.md) for the supported wire types and current parser
+limitations.
+
+Send `SIGINT` or `SIGTERM` to stop the process. The HTTP and RESP servers start
 concurrently and share one lifecycle: if either server fails to start, the other
 server is shut down. Graceful shutdown has a one-second deadline.
 
