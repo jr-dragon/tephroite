@@ -33,6 +33,8 @@ type RESPServer struct {
 
 func NewRESPServer(handler *Handler) *RESPServer {
 	return &RESPServer{
+		Addr: ":16379",
+
 		handler: handler,
 
 		conns: make(map[net.Conn]struct{}),
@@ -41,7 +43,7 @@ func NewRESPServer(handler *Handler) *RESPServer {
 
 func (s *RESPServer) ListenAndServe() error {
 	var err error
-	if s.listener, err = net.Listen("tcp", ":16379"); err != nil {
+	if s.listener, err = net.Listen("tcp", s.Addr); err != nil {
 		return err
 	}
 
@@ -100,12 +102,15 @@ func (s *RESPServer) serve(conn net.Conn) {
 			case errors.Is(err, ErrClient):
 				// do nothing
 			case errors.Is(err, ErrClientFatal):
+				wr.Write(ret.Marshal())
 				return
 			case errors.Is(err, ErrServer):
 				slog.Error("failed to serve", slog.Any("error", err))
+				wr.Write(ret.Marshal())
 				return
 			default:
 				slog.Error("failed to serve", slog.Any("error", err))
+				wr.Write(ret.Marshal())
 				return
 			}
 		}

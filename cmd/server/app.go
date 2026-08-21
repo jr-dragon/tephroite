@@ -34,7 +34,7 @@ func (app *App) Run(ctx context.Context) error {
 		return nil
 	})
 	g.Go(func() error {
-		slog.InfoContext(ctx, "starting tephroite server", slog.String("network", "tcp"), slog.String("address", ":16379"))
+		slog.InfoContext(ctx, "starting tephroite server", slog.String("address", app.respsrv.Addr))
 		if err := app.respsrv.ListenAndServe(); err != nil && !errors.Is(err, server.ErrServerClosed) {
 			return err
 		}
