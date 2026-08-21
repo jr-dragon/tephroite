@@ -14,17 +14,17 @@ func NewReader(rd io.Reader) *Reader {
 	if buffered, ok := rd.(*bufio.Reader); ok {
 		return &Reader{rd: buffered}
 	}
+	if buffered, ok := rd.(*bufio.ReadWriter); ok {
+		return &Reader{rd: buffered.Reader}
+	}
 
 	return &Reader{rd: bufio.NewReader(rd)}
 }
 
 func (rd *Reader) Read() (Value, error) {
-	header, err := rd.rd.ReadBytes('\n')
+	header, err := rd.readHeader()
 	if err != nil {
-		return nil, fmt.Errorf("resp: %w: %w", io.EOF, err)
-	}
-	if len(header) < 3 || header[len(header)-2] != '\r' {
-		return nil, fmt.Errorf("%w: %s", errInvalidHeader, header)
+		return nil, err
 	}
 
 	switch header[0] {
@@ -59,6 +59,18 @@ func (rd *Reader) Read() (Value, error) {
 	case MAGIC_PUSH:
 		return BuildPush(header, rd.rd)
 	default:
-		return BuildInlineArray(header)
+		return BuildInlineArray(header), nil
 	}
+}
+
+func (rd *Reader) readHeader() ([]byte, error) {
+	header, err := rd.rd.ReadBytes('\n')
+	if err != nil {
+		return nil, fmt.Errorf("resp: %w: %w", io.EOF, err)
+	}
+	if len(header) < 3 || header[len(header)-2] != '\r' {
+		return nil, fmt.Errorf("%w: %s", errInvalidHeader, header)
+	}
+
+	return header, nil
 }

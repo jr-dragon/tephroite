@@ -1,8 +1,8 @@
 # Tephroite
 
 Tephroite is a high-performance, in-memory key-value storage service written in
-Go. The current server is an early prototype that accepts RESP2, RESP3, and
-inline-encoded values on gnet alongside a local pprof HTTP server.
+Go. The current server is an early prototype that accepts RESP command arrays
+and inline commands over TCP alongside a local pprof HTTP server.
 
 ## Requirements
 
@@ -35,25 +35,26 @@ The process starts these listeners:
 
 | Service | Address | Current behavior |
 | --- | --- | --- |
-| RESP server | `tcp://:16379` | Decodes supported RESP or inline values and replies with `+OK` for each value |
+| RESP server | `tcp://:16379` | Executes the supported RESP or inline commands |
 | pprof HTTP server | `http://localhost:6060/debug/pprof/` | Exposes Go runtime profiling endpoints locally |
 
-The RESP listener binds to all available interfaces. It supports pipelined
-values, so each successfully decoded value receives a response in input order.
-For example, with the server running:
+The RESP listener binds to all available interfaces. The only implemented
+command is `PING`, including its optional message argument. Commands may be
+pipelined and receive responses in input order. For example:
 
 ```sh
-printf 'PING\r\n*1\r\n$4\r\nPING\r\n' | nc -w 1 localhost 16379
+printf 'PING\r\n*2\r\n$4\r\nPING\r\n$5\r\nhello\r\n' | nc -w 1 localhost 16379
 ```
 
-The server responds with two `+OK` values. It does not execute commands or store
-data yet, so it is not a functional key-value server. See
-[RESP support](./docs/resp.md) for the supported wire types and current parser
-limitations.
+The server responds with `+PONG` followed by the bulk string `hello`. It does
+not store data yet, so it is not a functional key-value server. See
+[RESP support](./docs/resp.md) for command framing, supported wire values, and
+current limitations.
 
 Send `SIGINT` or `SIGTERM` to stop the process. The HTTP and RESP servers start
 concurrently and share one lifecycle: if either server fails to start, the other
-server is shut down. Graceful shutdown has a one-second deadline.
+server is shut down. Coordinated shutdown has a one-second deadline. See
+[server lifecycle](./docs/server-lifecycle.md) for synchronization details.
 
 ## Development
 

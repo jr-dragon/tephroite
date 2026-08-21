@@ -1,9 +1,15 @@
 package resp
 
-import "bytes"
+import (
+	"bytes"
+	"errors"
+)
 
 var (
 	OKValue = ok{}
+
+	UnknownError  = NewSimpleError(errors.New("unknown error"))
+	InternalError = NewSimpleError(errors.New("internal server error"))
 
 	NullBulkStringValue = BulkString{null: true}
 	NullArrayValue      = Array{null: true}

@@ -6,71 +6,209 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
+	"net"
 	"sync"
+	"sync/atomic"
 
 	"github.com/jr-dragon/tephroite/pkg/resp"
-	"github.com/panjf2000/gnet/v2"
+)
+
+var (
+	ErrServerClosed = errors.New("resp: server closed")
 )
 
 type RESPServer struct {
 	Addr string
 
-	gnet.BuiltinEventEngine
+	handler *Handler
 
-	mu         sync.Mutex
-	eng        gnet.Engine
-	booted     bool
-	inShutdown bool
+	lnmu       sync.Mutex
+	listener   net.Listener
+	inShutdown atomic.Bool
+
+	wg     sync.WaitGroup
+	connmu sync.Mutex
+	conns  map[net.Conn]struct{}
 }
 
-func NewRESPServer() *RESPServer {
+func NewRESPServer(handler *Handler) *RESPServer {
 	return &RESPServer{
-		Addr: "tcp://:16379",
+		Addr: ":16379",
+
+		handler: handler,
+
+		conns: make(map[net.Conn]struct{}),
 	}
 }
 
-func (srv *RESPServer) OnBoot(eng gnet.Engine) gnet.Action {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
-
-	slog.Info("starting tephroite server:", slog.String("address", srv.Addr))
-
-	if srv.inShutdown {
-		return gnet.Shutdown
+func (s *RESPServer) ListenAndServe() error {
+	// Fast check if in shutting down state.
+	if s.inShutdown.Load() {
+		return ErrServerClosed
 	}
 
-	srv.eng = eng
-	srv.booted = true
-	return gnet.None
-}
+	ln, err := net.Listen("tcp", s.Addr)
+	if err != nil {
+		return err
+	}
 
-func (srv *RESPServer) OnTraffic(c gnet.Conn) gnet.Action {
-	rd := resp.NewReader(c)
-	wr := bufio.NewWriter(c)
-	defer wr.Flush()
+	// Track net.Listener in s.listener.
+	s.lnmu.Lock()
+	if s.inShutdown.Load() {
+		s.lnmu.Unlock()
+		_ = ln.Close()
+		return ErrServerClosed
+	}
+	s.listener = ln
+	s.lnmu.Unlock()
+
+	// Untrack s.listener
+	defer func() {
+		s.lnmu.Lock()
+		defer s.lnmu.Unlock()
+
+		if s.listener == ln {
+			s.listener = nil
+		}
+	}()
+
 	for {
-		_, err := rd.Read()
+		conn, err := ln.Accept()
 		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				c.Write(resp.NewSimpleError(err).Marshal())
+			if s.inShutdown.Load() {
+				return ErrServerClosed
 			}
-			return gnet.None
+
+			slog.Error("failed to accept connection", slog.Any("error", err))
+			return err
 		}
 
-		wr.Write(resp.OKValue.Marshal())
+		if !s.trackConn(conn) {
+			_ = conn.Close()
+			return ErrServerClosed
+		}
 	}
 }
 
-func (srv *RESPServer) Shutdown(ctx context.Context) error {
-	srv.mu.Lock()
-	srv.inShutdown = true
+func (s *RESPServer) trackConn(conn net.Conn) bool {
+	s.connmu.Lock()
+	defer s.connmu.Unlock()
 
-	if !srv.booted {
-		srv.mu.Unlock()
-		return nil
+	if s.inShutdown.Load() {
+		return false
 	}
 
-	eng := srv.eng
-	srv.mu.Unlock()
-	return eng.Stop(ctx)
+	s.conns[conn] = struct{}{}
+	s.wg.Go(func() { s.serve(conn) })
+	return true
+}
+
+func (s *RESPServer) serve(conn net.Conn) {
+	defer conn.Close()
+	defer func() {
+		s.connmu.Lock()
+		defer s.connmu.Unlock()
+
+		delete(s.conns, conn)
+	}()
+
+	rd := bufio.NewReader(conn)
+	wr := bufio.NewWriter(conn)
+	defer wr.Flush()
+
+	cmd := resp.NewCommand(rd)
+
+	for {
+		ret, err := s.handler.ServeRESP(context.Background(), cmd)
+		if err != nil {
+			if s.inShutdown.Load() || errors.Is(err, io.EOF) {
+				return
+			}
+
+			switch {
+			case errors.Is(err, ErrClient):
+				// do nothing
+			case errors.Is(err, ErrClientFatal):
+				wr.Write(ret.Marshal())
+				return
+			case errors.Is(err, ErrServer):
+				slog.Error("failed to serve", slog.Any("error", err))
+				wr.Write(ret.Marshal())
+				return
+			default:
+				slog.Error("failed to serve", slog.Any("error", err))
+				wr.Write(ret.Marshal())
+				return
+			}
+		}
+
+		if _, err := wr.Write(ret.Marshal()); err != nil {
+			if s.inShutdown.Load() {
+				return
+			}
+
+			slog.Error("failed to write to conn:", slog.Any("error", err))
+			return
+		}
+		if errors.Is(err, resp.ErrProtocol) {
+			return
+		}
+
+		if rd.Buffered() == 0 {
+			if err := wr.Flush(); err != nil {
+				if s.inShutdown.Load() {
+					return
+				}
+
+				slog.Error("failed to flush", slog.Any("error", err))
+				return
+			}
+		}
+	}
+}
+
+func (s *RESPServer) Shutdown(ctx context.Context) error {
+	s.inShutdown.Store(true)
+
+	s.lnmu.Lock()
+	ln := s.listener
+	s.lnmu.Unlock()
+
+	var errs []error
+	if ln != nil {
+		if err := ln.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if err := s.closeConns(); err != nil {
+		errs = append(errs, err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		s.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return errors.Join(errs...)
+	case <-ctx.Done():
+		errs = append(errs, ctx.Err())
+		return errors.Join(errs...)
+	}
+}
+
+func (s *RESPServer) closeConns() error {
+	s.connmu.Lock()
+	conns := maps.Clone(s.conns)
+	s.connmu.Unlock()
+
+	var errs []error
+	for conn := range conns {
+		errs = append(errs, conn.Close())
+	}
+
+	return errors.Join(errs...)
 }

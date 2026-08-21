@@ -3,6 +3,7 @@ package resp
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 )
@@ -91,7 +92,10 @@ type Integer int64
 func BuildInteger(src []byte) (Integer, error) {
 	src = src[1 : len(src)-2]
 	i, err := strconv.Atoi(string(src))
-	return Integer(int64(i)), err
+	if err != nil {
+		return Integer(int64(i)), fmt.Errorf("%w: failed to convert string to int: %s", errInvalidHeader, src)
+	}
+	return Integer(int64(i)), nil
 }
 
 func (v Integer) marshalTo(buf *bytes.Buffer) {
@@ -119,7 +123,7 @@ func BuildBulkString(header []byte, rd io.Reader) (BulkString, error) {
 	buf, err := readBlob(header, rd)
 	if err != nil {
 		if errors.Is(err, errNegativeLength) {
-			return BulkString{null: true}, nil
+			return NullBulkStringValue, nil
 		}
 	}
 
@@ -169,7 +173,7 @@ func BuildArray(header []byte, rd io.Reader) (Array, error) {
 	return Array{data: values}, err
 }
 
-func BuildInlineArray(header []byte) (Array, error) {
+func BuildInlineArray(header []byte) Array {
 	splitted := bytes.Split(header[:len(header)-2], []byte{' '})
 
 	strs := make([]Value, 0, len(splitted))
@@ -177,7 +181,18 @@ func BuildInlineArray(header []byte) (Array, error) {
 		strs = append(strs, NewBulkString(string(s)))
 	}
 
-	return Array{data: strs}, nil
+	return Array{data: strs}
+}
+
+func BuildInlineBulkString(header []byte) []BulkString {
+	splitted := bytes.Split(header[:len(header)-2], []byte{' '})
+
+	strs := make([]BulkString, 0, len(splitted))
+	for _, s := range splitted {
+		strs = append(strs, NewBulkString(string(s)))
+	}
+
+	return strs
 }
 
 func (v Array) marshalTo(buf *bytes.Buffer) {

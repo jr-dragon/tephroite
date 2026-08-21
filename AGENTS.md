@@ -29,17 +29,21 @@ Tephroite is a high performance in-memory key-value storage service.
 
 ## Server lifecycle
 
-- The gnet RESP server and pprof HTTP server start concurrently and must share one lifecycle.
+- The TCP RESP server and pprof HTTP server start concurrently and must share one lifecycle.
 - Preserve the behavior that a startup or runtime error from either server cancels the group and shuts down both servers.
-- Keep shutdown safe before and after gnet's `OnBoot`; changes to this synchronization require tests for both orderings.
+- Keep shutdown safe before and after listener publication; changes to listener or connection synchronization require tests for both orderings.
 - The current public listeners are the experimental RESP service on `tcp://:16379` and local pprof on `localhost:6060`.
-- The RESP service only decodes values and returns `+OK`; do not document it as executing commands or storing data.
+- A server is not reusable after shutdown. Keep listener publication and shutdown state synchronized.
+- See [server lifecycle](docs/server-lifecycle.md) for the ownership and shutdown sequence.
 
 ## RESP implementation
 
-- Keep protocol types and parsing in `pkg/resp`; keep server event handling in `internal/server`.
-- Preserve ordered responses for pipelined values and return a RESP simple error for malformed non-EOF input.
+- Keep protocol types and parsing in `pkg/resp`, server handling in `internal/server`, and command implementations in `internal/service/cmd`.
+- The experimental server executes `PING` but does not store data. Keep public documentation explicit about the supported commands.
+- Preserve ordered responses for pipelined commands. Return a RESP simple error for malformed non-EOF input and then close the connection.
+- Keep command errors, such as unknown commands or invalid argument counts, non-fatal to the connection.
 - A reader call must consume exactly one value, including nested aggregate content, without consuming the following value. Cover changes to aggregate parsing with a trailing-value test.
+- A command reader call must consume exactly one command without consuming the following command. RESP array commands must contain bulk-string arguments.
 - Keep wire lengths byte-based and require CRLF framing. See [RESP support](docs/resp.md) for the supported types, API contract, and known limitations.
 
 ## Pull requests

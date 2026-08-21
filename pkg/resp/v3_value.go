@@ -2,7 +2,6 @@ package resp
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -39,7 +38,7 @@ type Boolean bool
 
 func BuildBoolean(src []byte) (Boolean, error) {
 	if len(src) < 4 {
-		return Boolean(false), fmt.Errorf("%w: %s", errInvalidHeader, src)
+		return Boolean(false), fmt.Errorf("%w: length of boolean type must > 4: %s", errInvalidHeader, src)
 	}
 
 	return Boolean(src[1] == 't'), nil
@@ -103,7 +102,7 @@ func BuildBigNumber(src []byte) (BigNumber, error) {
 	n := BigNumber{}
 	n.val, ok = new(big.Int).SetString(string(src), 10)
 	if !ok {
-		return BigNumber{}, errors.New("resp: failed to parse big number")
+		return BigNumber{}, fmt.Errorf("%w: failed to parse big number: %s", errInvalidHeader, src)
 	}
 	return n, nil
 }
@@ -182,7 +181,10 @@ func BuildVerbatimString(header []byte, rd io.Reader) (VerbatimString, error) {
 	}
 
 	if len(buf) < 4 || buf[3] != ':' {
-		return VerbatimString{}, errors.New("resp: invalid verbatim string")
+		if len(buf) >= 10 {
+			buf = buf[:10]
+		}
+		return VerbatimString{}, fmt.Errorf("%w: length of verbatim string must > 4 and includes ':': %s...", errInvalidBody, buf)
 	}
 
 	vs := VerbatimString{data: string(buf[4:])}
