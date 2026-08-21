@@ -2,7 +2,6 @@ package resp
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -12,12 +11,6 @@ const (
 	aggrBufferLowWatermark = 1 << 10
 	aggrBufferGrowSize     = 4 << 10
 	numericBufferMinSize   = 24
-)
-
-var (
-	ErrInvalidHeader      = errors.New("resp: invalid header")
-	errNegativeLength     = errors.New("resp: negative length")
-	errUnexpectedSentinel = errors.New("resp: unexpected sentinel")
 )
 
 // numericBuffer returns spare buffer storage for strconv's append functions.
@@ -40,17 +33,17 @@ func growAggrBuffer(buf *bytes.Buffer) {
 
 func readBlob(header []byte, rd io.Reader) ([]byte, error) {
 	if len(header) < 3 {
-		return nil, fmt.Errorf("%w: %s", ErrInvalidHeader, header)
+		return nil, fmt.Errorf("%w: %s", errInvalidHeader, header)
 	}
 
-	length, err := ParseLength(header[1 : len(header)-2])
+	length, err := parseLength(header[1 : len(header)-2])
 	if err != nil {
 		return nil, err
 	}
 
 	buf := make([]byte, length+2)
 	if _, err := io.ReadFull(rd, buf); err != nil {
-		return nil, fmt.Errorf("resp: %w", io.ErrUnexpectedEOF)
+		return nil, errUnexpectedEOF
 	}
 	if len(buf) < 2 || (buf[len(buf)-2] != '\r' && buf[len(buf)-1] != '\n') {
 		return nil, errUnexpectedSentinel
@@ -61,10 +54,10 @@ func readBlob(header []byte, rd io.Reader) ([]byte, error) {
 
 func readMapEntries(header []byte, rd io.Reader) ([]MapEntry, error) {
 	if len(header) < 3 {
-		return nil, fmt.Errorf("%w: %s", ErrInvalidHeader, header)
+		return nil, fmt.Errorf("%w: %s", errInvalidHeader, header)
 	}
 
-	length, err := ParseLength(header[1 : len(header)-2])
+	length, err := parseLength(header[1 : len(header)-2])
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +67,7 @@ func readMapEntries(header []byte, rd io.Reader) ([]MapEntry, error) {
 		return entries, nil
 	}
 	if rd == nil {
-		return entries, io.ErrUnexpectedEOF
+		return entries, errUnexpectedEOF
 	}
 
 	vrd := NewReader(rd)
@@ -95,10 +88,10 @@ func readMapEntries(header []byte, rd io.Reader) ([]MapEntry, error) {
 
 func readValues(header []byte, rd io.Reader) ([]Value, error) {
 	if len(header) < 3 {
-		return nil, fmt.Errorf("%w: %s", ErrInvalidHeader, header)
+		return nil, fmt.Errorf("%w: %s", errInvalidHeader, header)
 	}
 
-	length, err := ParseLength(header[1 : len(header)-2])
+	length, err := parseLength(header[1 : len(header)-2])
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +101,7 @@ func readValues(header []byte, rd io.Reader) ([]Value, error) {
 		return values, nil
 	}
 	if rd == nil {
-		return values, fmt.Errorf("resp: %w", io.ErrUnexpectedEOF)
+		return values, errUnexpectedEOF
 	}
 
 	vrd := NewReader(rd)
@@ -123,14 +116,18 @@ func readValues(header []byte, rd io.Reader) ([]Value, error) {
 	return values, nil
 }
 
-func ParseLength(header []byte) (int, error) {
+func parseLength(header []byte) (int, error) {
 	if len(header) < 1 {
-		return 0, fmt.Errorf("%w: %v", ErrInvalidHeader, header)
+		return 0, fmt.Errorf("%w: %v", errInvalidHeader, header)
 	}
 
 	if header[0] == '-' {
 		return 0, errNegativeLength
 	}
 
-	return strconv.Atoi(string(header))
+	l, err := strconv.Atoi(string(header))
+	if err != nil {
+		return l, fmt.Errorf("%w: failed to convert length to int", errInvalidHeader)
+	}
+	return l, nil
 }

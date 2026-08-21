@@ -438,13 +438,7 @@ func TestBuildInlineArray(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := BuildInlineArray(tt.payload)
-			if err != nil {
-				t.Errorf("unexpected error: %s", err.Error())
-				return
-			}
-
-			assertMarshaledValue(t, got, tt.want)
+			assertMarshaledValue(t, BuildInlineArray(tt.payload), tt.want)
 		})
 	}
 }

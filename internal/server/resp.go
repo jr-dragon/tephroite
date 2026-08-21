@@ -13,7 +13,8 @@ import (
 )
 
 type RESPServer struct {
-	Addr string
+	Addr    string
+	Handler *Handler
 
 	gnet.BuiltinEventEngine
 
@@ -23,9 +24,10 @@ type RESPServer struct {
 	inShutdown bool
 }
 
-func NewRESPServer() *RESPServer {
+func NewRESPServer(handler *Handler) *RESPServer {
 	return &RESPServer{
-		Addr: "tcp://:16379",
+		Addr:    "tcp://:16379",
+		Handler: handler,
 	}
 }
 
@@ -45,19 +47,29 @@ func (srv *RESPServer) OnBoot(eng gnet.Engine) gnet.Action {
 }
 
 func (srv *RESPServer) OnTraffic(c gnet.Conn) gnet.Action {
-	rd := resp.NewReader(c)
+	rd := bufio.NewReader(c)
 	wr := bufio.NewWriter(c)
 	defer wr.Flush()
 	for {
-		_, err := rd.Read()
+		res, err := srv.Handler.ServeRESP(context.TODO(), rd)
 		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				c.Write(resp.NewSimpleError(err).Marshal())
+			switch {
+			case errors.Is(err, io.EOF):
+				return gnet.None
+			case errors.Is(err, ErrClient):
+				wr.Write(res.Marshal())
+				return gnet.None
+			case errors.Is(err, ErrServer):
+				slog.Error("failed to serve", slog.Any("error", err))
+				wr.Write(resp.InternalError.Marshal())
+				return gnet.Close
+			default:
+				slog.Error("failed to serve", slog.Any("error", err))
+				wr.Write(resp.InternalError.Marshal())
+				return gnet.None
 			}
-			return gnet.None
 		}
-
-		wr.Write(resp.OKValue.Marshal())
+		wr.Write(res.Marshal())
 	}
 }
 
