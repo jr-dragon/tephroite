@@ -15,7 +15,7 @@ const (
 )
 
 var (
-	errInvalidHeader      = errors.New("resp: invalid header")
+	ErrInvalidHeader      = errors.New("resp: invalid header")
 	errNegativeLength     = errors.New("resp: negative length")
 	errUnexpectedSentinel = errors.New("resp: unexpected sentinel")
 )
@@ -40,10 +40,10 @@ func growAggrBuffer(buf *bytes.Buffer) {
 
 func readBlob(header []byte, rd io.Reader) ([]byte, error) {
 	if len(header) < 3 {
-		return nil, fmt.Errorf("%w: %s", errInvalidHeader, header)
+		return nil, fmt.Errorf("%w: %s", ErrInvalidHeader, header)
 	}
 
-	length, err := parseLength(header[1 : len(header)-2])
+	length, err := ParseLength(header[1 : len(header)-2])
 	if err != nil {
 		return nil, err
 	}
@@ -61,10 +61,10 @@ func readBlob(header []byte, rd io.Reader) ([]byte, error) {
 
 func readMapEntries(header []byte, rd io.Reader) ([]MapEntry, error) {
 	if len(header) < 3 {
-		return nil, fmt.Errorf("%w: %s", errInvalidHeader, header)
+		return nil, fmt.Errorf("%w: %s", ErrInvalidHeader, header)
 	}
 
-	length, err := parseLength(header[1 : len(header)-2])
+	length, err := ParseLength(header[1 : len(header)-2])
 	if err != nil {
 		return nil, err
 	}
@@ -95,10 +95,10 @@ func readMapEntries(header []byte, rd io.Reader) ([]MapEntry, error) {
 
 func readValues(header []byte, rd io.Reader) ([]Value, error) {
 	if len(header) < 3 {
-		return nil, fmt.Errorf("%w: %s", errInvalidHeader, header)
+		return nil, fmt.Errorf("%w: %s", ErrInvalidHeader, header)
 	}
 
-	length, err := parseLength(header[1 : len(header)-2])
+	length, err := ParseLength(header[1 : len(header)-2])
 	if err != nil {
 		return nil, err
 	}
@@ -123,9 +123,9 @@ func readValues(header []byte, rd io.Reader) ([]Value, error) {
 	return values, nil
 }
 
-func parseLength(header []byte) (int, error) {
+func ParseLength(header []byte) (int, error) {
 	if len(header) < 1 {
-		return 0, fmt.Errorf("%w: %v", errInvalidHeader, header)
+		return 0, fmt.Errorf("%w: %v", ErrInvalidHeader, header)
 	}
 
 	if header[0] == '-' {

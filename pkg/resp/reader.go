@@ -19,12 +19,9 @@ func NewReader(rd io.Reader) *Reader {
 }
 
 func (rd *Reader) Read() (Value, error) {
-	header, err := rd.rd.ReadBytes('\n')
+	header, err := rd.ReadHeader()
 	if err != nil {
-		return nil, fmt.Errorf("resp: %w: %w", io.EOF, err)
-	}
-	if len(header) < 3 || header[len(header)-2] != '\r' {
-		return nil, fmt.Errorf("%w: %s", errInvalidHeader, header)
+		return nil, err
 	}
 
 	switch header[0] {
@@ -61,4 +58,20 @@ func (rd *Reader) Read() (Value, error) {
 	default:
 		return BuildInlineArray(header)
 	}
+}
+
+func (rd *Reader) ReadHeader() ([]byte, error) {
+	header, err := rd.rd.ReadBytes('\n')
+	if err != nil {
+		return nil, fmt.Errorf("resp: %w: %w", io.EOF, err)
+	}
+	if len(header) < 3 || header[len(header)-2] != '\r' {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidHeader, header)
+	}
+
+	return header, nil
+}
+
+func (rd *Reader) Reader() *bufio.Reader {
+	return rd.rd
 }

@@ -39,7 +39,7 @@ type Boolean bool
 
 func BuildBoolean(src []byte) (Boolean, error) {
 	if len(src) < 4 {
-		return Boolean(false), fmt.Errorf("%w: %s", errInvalidHeader, src)
+		return Boolean(false), fmt.Errorf("%w: %s", ErrInvalidHeader, src)
 	}
 
 	return Boolean(src[1] == 't'), nil
