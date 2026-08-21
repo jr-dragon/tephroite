@@ -1,6 +1,7 @@
 package resp
 
 import (
+	"errors"
 	"fmt"
 	"io"
 )
@@ -17,9 +18,13 @@ const (
 type Command struct {
 	rd *Reader
 
-	// argsCache provides an array of command arguments to avoid
-	// allocating by make([]BulkString, 0, length)
+	// argsCache avoids allocating a new argument slice with make on every read.
 	argsCache [cmdArgsCacheCount]BulkString
+
+	// byteCache avoids allocating a new byte slice with make on every read.
+	// Its size is 4 KiB minus the space occupied by rd and argsCache, keeping
+	// the entire Command aligned to 4 KiB.
+	byteCache [1<<12 - 200]byte
 }
 
 func NewCommand(rd io.Reader) *Command {
@@ -65,7 +70,7 @@ func (c *Command) Read() ([]BulkString, error) {
 		if h[0] != MAGIC_BULK_STRING {
 			return nil, fmt.Errorf("%w: expect '%c', got '%c'", errInvalidHeader, MAGIC_BULK_STRING, h[0])
 		}
-		arg, err := BuildBulkString(h, c.rd.rd)
+		arg, err := c.buildBulkString(h, c.rd.rd)
 		if err != nil {
 			return nil, err
 		}
@@ -74,4 +79,34 @@ func (c *Command) Read() ([]BulkString, error) {
 	}
 
 	return args, nil
+}
+
+func (c *Command) buildBulkString(header []byte, rd io.Reader) (BulkString, error) {
+	if len(header) < 4 {
+		return BulkString{}, fmt.Errorf("%w: %s", errInvalidHeader, header)
+	}
+
+	sz, err := parseLength(header[1 : len(header)-2])
+	if err != nil {
+		if errors.Is(err, errNegativeLength) {
+			return NullBulkStringValue, nil
+		}
+		return BulkString{}, err
+	}
+
+	var buf []byte
+	if sz+2 <= len(c.byteCache) {
+		buf = c.byteCache[:sz+2]
+	} else {
+		buf = make([]byte, sz+2)
+	}
+
+	if _, err := io.ReadFull(rd, buf); err != nil {
+		return BulkString{}, errUnexpectedEOF
+	}
+	if len(buf) < 2 || buf[len(buf)-2] != '\r' || buf[len(buf)-1] != '\n' {
+		return BulkString{}, errUnexpectedSentinel
+	}
+
+	return BulkString{data: string(buf[:len(buf)-2])}, nil
 }

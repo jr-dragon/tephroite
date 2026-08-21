@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"slices"
 	"strings"
 
@@ -52,8 +51,8 @@ func (h *Handler) Exec(ctx context.Context, args []resp.BulkString) (resp.Value,
 	return f(ctx, args)
 }
 
-func (h *Handler) ServeRESP(ctx context.Context, rd io.Reader) (resp.Value, error) {
-	args, err := resp.NewCommand(rd).Read()
+func (h *Handler) ServeRESP(ctx context.Context, rd *resp.Command) (resp.Value, error) {
+	args, err := rd.Read()
 	if err != nil {
 		if errors.Is(err, resp.ErrProtocol) {
 			return resp.NewSimpleError(err), fmt.Errorf("%w: %w", ErrClientFatal, err)

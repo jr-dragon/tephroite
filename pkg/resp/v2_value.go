@@ -123,7 +123,7 @@ func BuildBulkString(header []byte, rd io.Reader) (BulkString, error) {
 	buf, err := readBlob(header, rd)
 	if err != nil {
 		if errors.Is(err, errNegativeLength) {
-			return BulkString{null: true}, nil
+			return NullBulkStringValue, nil
 		}
 	}
 

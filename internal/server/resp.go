@@ -87,11 +87,14 @@ func (s *RESPServer) serve(conn net.Conn) {
 		delete(s.conns, conn)
 	}()
 
-	iobuf := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
-	defer iobuf.Flush()
+	rd := bufio.NewReader(conn)
+	wr := bufio.NewWriter(conn)
+	defer wr.Flush()
+
+	cmd := resp.NewCommand(rd)
 
 	for {
-		ret, err := s.handler.ServeRESP(context.Background(), iobuf)
+		ret, err := s.handler.ServeRESP(context.Background(), cmd)
 		if err != nil {
 			if s.inShutdown.Load() || errors.Is(err, io.EOF) {
 				return
@@ -101,20 +104,20 @@ func (s *RESPServer) serve(conn net.Conn) {
 			case errors.Is(err, ErrClient):
 				// do nothing
 			case errors.Is(err, ErrClientFatal):
-				iobuf.Write(ret.Marshal())
+				wr.Write(ret.Marshal())
 				return
 			case errors.Is(err, ErrServer):
 				slog.Error("failed to serve", slog.Any("error", err))
-				iobuf.Write(ret.Marshal())
+				wr.Write(ret.Marshal())
 				return
 			default:
 				slog.Error("failed to serve", slog.Any("error", err))
-				iobuf.Write(ret.Marshal())
+				wr.Write(ret.Marshal())
 				return
 			}
 		}
 
-		if _, err := iobuf.Write(ret.Marshal()); err != nil {
+		if _, err := wr.Write(ret.Marshal()); err != nil {
 			if s.inShutdown.Load() {
 				return
 			}
@@ -126,8 +129,8 @@ func (s *RESPServer) serve(conn net.Conn) {
 			return
 		}
 
-		if iobuf.Reader.Buffered() == 0 {
-			if err := iobuf.Flush(); err != nil {
+		if rd.Buffered() == 0 {
+			if err := wr.Flush(); err != nil {
 				if s.inShutdown.Load() {
 					return
 				}

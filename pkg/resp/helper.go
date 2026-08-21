@@ -13,10 +13,6 @@ const (
 	numericBufferMinSize   = 24
 )
 
-var (
-	bytesCache [1 << 12]byte
-)
-
 // numericBuffer returns spare buffer storage for strconv's append functions.
 // It reserves at least 24 bytes, enough for any base-10 int64 or float64 text.
 func numericBuffer(buf *bytes.Buffer) []byte {
@@ -45,12 +41,7 @@ func readBlob(header []byte, rd io.Reader) ([]byte, error) {
 		return nil, err
 	}
 
-	var buf []byte
-	if sz+2 < len(bytesCache) {
-		buf = bytesCache[:sz+2]
-	} else {
-		buf = make([]byte, sz+2)
-	}
+	buf := make([]byte, sz+2)
 	if _, err := io.ReadFull(rd, buf); err != nil {
 		return nil, errUnexpectedEOF
 	}
