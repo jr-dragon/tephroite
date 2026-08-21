@@ -45,7 +45,7 @@ func readBlob(header []byte, rd io.Reader) ([]byte, error) {
 	if _, err := io.ReadFull(rd, buf); err != nil {
 		return nil, errUnexpectedEOF
 	}
-	if len(buf) < 2 || (buf[len(buf)-2] != '\r' && buf[len(buf)-1] != '\n') {
+	if len(buf) < 2 || buf[len(buf)-2] != '\r' || buf[len(buf)-1] != '\n' {
 		return nil, errUnexpectedSentinel
 	}
 

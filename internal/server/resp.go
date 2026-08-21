@@ -56,9 +56,11 @@ func (srv *RESPServer) OnTraffic(c gnet.Conn) gnet.Action {
 			switch {
 			case errors.Is(err, io.EOF):
 				return gnet.None
-			case errors.Is(err, ErrClient):
+			case errors.Is(err, ErrClientFatal):
 				wr.Write(res.Marshal())
-				return gnet.None
+				return gnet.Close
+			case errors.Is(err, ErrClient):
+				// do nothing
 			case errors.Is(err, ErrServer):
 				slog.Error("failed to serve", slog.Any("error", err))
 				wr.Write(resp.InternalError.Marshal())

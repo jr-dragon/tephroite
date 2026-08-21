@@ -62,6 +62,9 @@ func (c *Command) Read() ([]BulkString, error) {
 			return nil, err
 		}
 
+		if h[0] != MAGIC_BULK_STRING {
+			return nil, fmt.Errorf("%w: expect '%c', got '%c'", errInvalidHeader, MAGIC_BULK_STRING, h[0])
+		}
 		arg, err := BuildBulkString(h, c.rd.rd)
 		if err != nil {
 			return nil, err

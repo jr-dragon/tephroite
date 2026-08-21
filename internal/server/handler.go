@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	ErrServer = errors.New("handler: server error")
-	ErrClient = errors.New("handler: client error")
+	ErrServer      = errors.New("handler: server error")
+	ErrClient      = errors.New("handler: client error")
+	ErrClientFatal = errors.New("handler: client fatal error")
 )
 
 type HandlerFunc func(context.Context, []resp.BulkString) (resp.Value, error)
@@ -55,7 +56,7 @@ func (h *Handler) ServeRESP(ctx context.Context, rd io.Reader) (resp.Value, erro
 	args, err := resp.NewCommand(rd).Read()
 	if err != nil {
 		if errors.Is(err, resp.ErrProtocol) {
-			return resp.NewSimpleError(err), fmt.Errorf("%w: %w", ErrClient, err)
+			return resp.NewSimpleError(err), fmt.Errorf("%w: %w", ErrClientFatal, err)
 		} else {
 			return resp.InternalError, fmt.Errorf("%w: %w", ErrServer, err)
 		}

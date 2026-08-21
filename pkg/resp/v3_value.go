@@ -181,7 +181,10 @@ func BuildVerbatimString(header []byte, rd io.Reader) (VerbatimString, error) {
 	}
 
 	if len(buf) < 4 || buf[3] != ':' {
-		return VerbatimString{}, fmt.Errorf("%w: length of verbatim string must > 4 and includes ':': %s...", errInvalidBody, buf[:10])
+		if len(buf) >= 10 {
+			buf = buf[:10]
+		}
+		return VerbatimString{}, fmt.Errorf("%w: length of verbatim string must > 4 and includes ':': %s...", errInvalidBody, buf)
 	}
 
 	vs := VerbatimString{data: string(buf[4:])}

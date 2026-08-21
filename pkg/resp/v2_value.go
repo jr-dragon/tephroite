@@ -93,7 +93,7 @@ func BuildInteger(src []byte) (Integer, error) {
 	src = src[1 : len(src)-2]
 	i, err := strconv.Atoi(string(src))
 	if err != nil {
-		return Integer(int64(i)), fmt.Errorf("%w: failed to convert string to int: %s", err, src)
+		return Integer(int64(i)), fmt.Errorf("%w: failed to convert string to int: %s", errInvalidHeader, src)
 	}
 	return Integer(int64(i)), nil
 }
