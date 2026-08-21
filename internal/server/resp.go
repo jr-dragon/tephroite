@@ -23,12 +23,13 @@ type RESPServer struct {
 
 	handler *Handler
 
+	lnmu       sync.Mutex
 	listener   net.Listener
 	inShutdown atomic.Bool
 
-	wg    sync.WaitGroup
-	mu    sync.Mutex
-	conns map[net.Conn]struct{}
+	wg     sync.WaitGroup
+	connmu sync.Mutex
+	conns  map[net.Conn]struct{}
 }
 
 func NewRESPServer(handler *Handler) *RESPServer {
@@ -42,13 +43,38 @@ func NewRESPServer(handler *Handler) *RESPServer {
 }
 
 func (s *RESPServer) ListenAndServe() error {
-	var err error
-	if s.listener, err = net.Listen("tcp", s.Addr); err != nil {
+	// Fast check if in shutting down state.
+	if s.inShutdown.Load() {
+		return ErrServerClosed
+	}
+
+	ln, err := net.Listen("tcp", s.Addr)
+	if err != nil {
 		return err
 	}
 
+	// Track net.Listener in s.listener.
+	s.lnmu.Lock()
+	if s.inShutdown.Load() {
+		s.lnmu.Unlock()
+		_ = ln.Close()
+		return ErrServerClosed
+	}
+	s.listener = ln
+	s.lnmu.Unlock()
+
+	// Untrack s.listener
+	defer func() {
+		s.lnmu.Lock()
+		defer s.lnmu.Unlock()
+
+		if s.listener == ln {
+			s.listener = nil
+		}
+	}()
+
 	for {
-		conn, err := s.listener.Accept()
+		conn, err := ln.Accept()
 		if err != nil {
 			if s.inShutdown.Load() {
 				return ErrServerClosed
@@ -66,8 +92,8 @@ func (s *RESPServer) ListenAndServe() error {
 }
 
 func (s *RESPServer) trackConn(conn net.Conn) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.connmu.Lock()
+	defer s.connmu.Unlock()
 
 	if s.inShutdown.Load() {
 		return false
@@ -81,8 +107,8 @@ func (s *RESPServer) trackConn(conn net.Conn) bool {
 func (s *RESPServer) serve(conn net.Conn) {
 	defer conn.Close()
 	defer func() {
-		s.mu.Lock()
-		defer s.mu.Unlock()
+		s.connmu.Lock()
+		defer s.connmu.Unlock()
 
 		delete(s.conns, conn)
 	}()
@@ -144,13 +170,16 @@ func (s *RESPServer) serve(conn net.Conn) {
 
 func (s *RESPServer) Shutdown(ctx context.Context) error {
 	s.inShutdown.Store(true)
-	if s.listener == nil {
-		return nil
-	}
+
+	s.lnmu.Lock()
+	ln := s.listener
+	s.lnmu.Unlock()
 
 	var errs []error
-	if err := s.listener.Close(); err != nil {
-		errs = append(errs, err)
+	if ln != nil {
+		if err := ln.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	if err := s.closeConns(); err != nil {
 		errs = append(errs, err)
@@ -172,9 +201,9 @@ func (s *RESPServer) Shutdown(ctx context.Context) error {
 }
 
 func (s *RESPServer) closeConns() error {
-	s.mu.Lock()
+	s.connmu.Lock()
 	conns := maps.Clone(s.conns)
-	s.mu.Unlock()
+	s.connmu.Unlock()
 
 	var errs []error
 	for conn := range conns {
