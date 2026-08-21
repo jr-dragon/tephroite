@@ -14,6 +14,9 @@ func NewReader(rd io.Reader) *Reader {
 	if buffered, ok := rd.(*bufio.Reader); ok {
 		return &Reader{rd: buffered}
 	}
+	if buffered, ok := rd.(*bufio.ReadWriter); ok {
+		return &Reader{rd: buffered.Reader}
+	}
 
 	return &Reader{rd: bufio.NewReader(rd)}
 }
