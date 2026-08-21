@@ -29,11 +29,18 @@ Tephroite is a high performance in-memory key-value storage service.
 
 ## Server lifecycle
 
-- The gnet echo server and pprof HTTP server start concurrently and must share one lifecycle.
+- The gnet RESP server and pprof HTTP server start concurrently and must share one lifecycle.
 - Preserve the behavior that a startup or runtime error from either server cancels the group and shuts down both servers.
 - Keep shutdown safe before and after gnet's `OnBoot`; changes to this synchronization require tests for both orderings.
-- The current public listeners are the uppercase echo service on `tcp://:16379` and local pprof on `localhost:6060`.
-- The echo service is not yet a RESP implementation. Do not document it as a functional key-value or RESP server until that protocol is implemented.
+- The current public listeners are the experimental RESP service on `tcp://:16379` and local pprof on `localhost:6060`.
+- The RESP service only decodes values and returns `+OK`; do not document it as executing commands or storing data.
+
+## RESP implementation
+
+- Keep protocol types and parsing in `pkg/resp`; keep server event handling in `internal/server`.
+- Preserve ordered responses for pipelined values and return a RESP simple error for malformed non-EOF input.
+- A reader call must consume exactly one value, including nested aggregate content, without consuming the following value. Cover changes to aggregate parsing with a trailing-value test.
+- Keep wire lengths byte-based and require CRLF framing. See [RESP support](docs/resp.md) for the supported types, API contract, and known limitations.
 
 ## Pull requests
 
