@@ -74,7 +74,7 @@ func (h *Handler) ServeRESP(ctx context.Context, rd io.Reader) (resp.Value, erro
 		}
 	}
 	if res == nil {
-		res = resp.OKValue
+		res = resp.NullBulkStringValue
 	}
 
 	return res, nil

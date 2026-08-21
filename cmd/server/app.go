@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/panjf2000/gnet/v2"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/jr-dragon/tephroite/internal/server"
@@ -28,14 +27,18 @@ func (app *App) Run(ctx context.Context) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		slog.InfoContext(ctx, "starting pprof http server:", slog.String("address", app.httpsrv.Addr))
+		slog.InfoContext(ctx, "starting pprof http server", slog.String("address", app.httpsrv.Addr))
 		if err := app.httpsrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return err
 		}
 		return nil
 	})
 	g.Go(func() error {
-		return gnet.Run(app.respsrv, app.respsrv.Addr)
+		slog.InfoContext(ctx, "starting tephroite server", slog.String("network", "tcp"), slog.String("address", ":16379"))
+		if err := app.respsrv.ListenAndServe(); err != nil && !errors.Is(err, server.ErrServerClosed) {
+			return err
+		}
+		return nil
 	})
 
 	errch := make(chan error, 1)
