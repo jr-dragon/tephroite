@@ -86,4 +86,7 @@ make clean
 
 ## License
 
-This software is under [MIT](./LICENSE) license.
+This software is under [MIT](./LICENSE) license, build with open-source library/software below:
+
+- [mazrean/kessoku](https://github.com/mazrean/kessoku): MIT License
+- [puzpuzpuz/xsync/](https://github.com/puzpuzpuz/xsync/): Apache-2.0 License
