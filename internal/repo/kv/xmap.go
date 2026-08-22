@@ -29,7 +29,7 @@ func (kv *xmap) Get(p KVGetParam) (val KVVal, err error) {
 				err = ErrKVNotFound
 				return current, xsync.CancelOp
 			case current.Expired():
-				err = ERrKVExpired
+				err = errKVExpired
 				return current, xsync.DeleteOp
 			default:
 				return current, xsync.CancelOp

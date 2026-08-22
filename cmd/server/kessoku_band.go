@@ -3,6 +3,7 @@
 package main
 
 import (
+	"github.com/jr-dragon/tephroite/internal/repo/kv"
 	"github.com/jr-dragon/tephroite/internal/server"
 	"github.com/jr-dragon/tephroite/internal/service/cmd"
 	"github.com/mazrean/kessoku"
@@ -10,7 +11,8 @@ import (
 )
 
 func NewApp() *App {
-	val := kessoku.Provide(cmd.NewCommands).Fn()()
+	kv0 := kessoku.Provide(kv.NewKV).Fn()()
+	val := kessoku.Provide(cmd.NewCommands).Fn()(kv0)
 	handler := kessoku.Provide(func(cmds []cmd.Command) *server.Handler {
 		return server.NewHandler(cmds)
 	}).Fn()(val)

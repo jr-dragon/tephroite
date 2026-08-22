@@ -6,6 +6,7 @@ import (
 
 	"github.com/mazrean/kessoku"
 
+	"github.com/jr-dragon/tephroite/internal/repo/kv"
 	"github.com/jr-dragon/tephroite/internal/server"
 	"github.com/jr-dragon/tephroite/internal/service/cmd"
 )
@@ -13,6 +14,9 @@ import (
 //go:generate go tool kessoku $GOFILE
 var _ = kessoku.Inject[*App](
 	"NewApp",
+	// repository
+	kessoku.Provide(kv.NewKV),
+
 	// service
 	kessoku.Provide(cmd.NewCommands),
 
