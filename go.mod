@@ -11,6 +11,7 @@ require (
 
 require (
 	github.com/alecthomas/kong v1.15.0 // indirect
+	github.com/puzpuzpuz/xsync/v4 v4.5.0 // indirect
 	golang.org/x/mod v0.36.0 // indirect
 	golang.org/x/tools v0.45.0 // indirect
 )
