@@ -1,6 +1,6 @@
 module github.com/jr-dragon/tephroite
 
-go 1.26.6
+go 1.27
 
 tool github.com/mazrean/kessoku/cmd/kessoku
 
